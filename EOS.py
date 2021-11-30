@@ -14,6 +14,11 @@ def calcFugacity(st,P,T):
     P=P*1e6
     st.update(CP.PT_INPUTS, P, T)
     return st.fugacity_coefficient(0)
+#output in kJ/mol
+def calcU(st,P,T):
+    P=P*1e6
+    st.update(CP.PT_INPUTS, P, T)
+    st.chemical_potential(0)/1000
 def initFugacity(gasName):
     st = CP.AbstractState('HEOS', gasName)
     st.specify_phase(CP.CoolProp.iphase_gas)

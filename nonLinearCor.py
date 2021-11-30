@@ -4,7 +4,7 @@ import CoolProp as CP
 import numpy as np
 import matplotlib.pyplot as plt
 from plotData import addPlot
-
+import csv
 #temp in K, press in Pa
 def calcFugacity(st,p,T):
     st.update(CP.PT_INPUTS, p, T)
@@ -13,7 +13,7 @@ def calcFugacity(st,p,T):
 
 
 if __name__ == '__main__':
-    gasName='Argon'
+    gasName='Krypton'
     st = CP.AbstractState('HEOS', gasName)
 
     press=np.arange(100, 10e6, 100)
@@ -24,6 +24,9 @@ if __name__ == '__main__':
     fug={}
     chem={}
     plt.figure()
+    outfile = open("Krypton.csv",'w')
+    out = csv.writer(outfile)
+    out.writerow(['Press (MPa)','Temp (K)','Fugacity','Chem Potential (J/mol)'])
     for T in temps:
 
         fug[T]=[]
@@ -32,9 +35,11 @@ if __name__ == '__main__':
             st.update(CP.PT_INPUTS, p, T)
             fug[T].append(st.fugacity_coefficient(0))
             chem[T].append(st.chemical_potential(0))
-
-        addPlot(press/1e6, fug[T],T,'-',minTemp=230)
+            a=[p,T,fug[T][-1],chem[T][-1]]
+            out.writerow(a)
+        addPlot(press/1e6, fug[T],T,'-',minTemp=270)
         plt.draw()
+    outfile.close()
     plt.ylabel("Fugacity Coefficient")
     plt.xlabel("Press (MPa)")
     plt.title(gasName)

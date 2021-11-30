@@ -11,9 +11,9 @@ dPdTs={} #dp/dt function to call for specific model (used for enthalpy)
 
 
 ### Calculating K, denominator either no T, T, or square root T dependence!
-def calcK(A,E,T):
+def calcK(A,E,T,x):
     r = 8.314462 / 1000
-    denom=T
+    denom=T**x
     return A/denom*np.exp(E/r/T)
 def addModel(name,coefs,bound,theta,dPdT):
     coefNames[name]=coefs
@@ -30,10 +30,11 @@ def theta_dL(p,t,coef):
         E1 = coef["E1"]
         A2 = coef["A2"]
         E2 = coef["E2"]
-        K1=calcK(A1,E1,t)#K1=a4*np.exp(a5/r/t)/denom
+        #x=coef["x"]
+        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
-        K2=calcK(A2,E2,t)#a6*np.exp(a7/r/t)/denom
+        K2=calcK(A2,E2,t,1)#a6*np.exp(a7/r/t)/denom
         return ((1-a)*(K1*p/(1+K1*p))+a*(K2*p/(1+K2*p)))
 def dPdT_dL(P,T,coef):
     r = 8.314462 / 1000
@@ -42,8 +43,9 @@ def dPdT_dL(P,T,coef):
     E1 = coef["E1"]
     A2 = coef["A2"]
     E2 = coef["E2"]
-    K1=calcK(A1,E1,T)
-    K2=calcK(A2,E2,T)
+    #x=coef["x"]
+    K1=calcK(A1,E1,T,1)
+    K2=calcK(A2,E2,T,1)
     #plt.figure()
     #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
     #X=dTheta/dP
@@ -62,6 +64,38 @@ def dPdT_dL(P,T,coef):
     Z2=-K2*((mult*r*T+E2)/(r*T**2))
     return (Y1*Z1+Y2*Z2)/X
 addModel('dL',dlNames,dlBounds,theta_dL,dPdT_dL)
+
+dlDisNames=["nmax","a","vmax","A1","E1","A2","E2"]
+
+dlDisBounds=[(0.0,0.1),(0,1),(5e-7, 1e-5), (0.0,10),(0.0,30),(0.0,10),(0.0, 30),(0,3)]
+def theta_dLDis(p,t,coef):
+    a = coef["a"]
+    A1 = coef["A1"]
+    E1 = coef["E1"]
+    A2 = coef["A2"]
+    E2 = coef["E2"]
+    x=1
+    K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
+    #assume both sites are equal
+    #K2=K1
+    K2=calcK(A2,2*E2,t,x)#a6*np.exp(a7/r/t)/denom
+    return ((1-a)*(K1*p/(1+K1*p))+a*(np.sqrt(K2*p)/(1+np.sqrt(K2*p))))
+def dPdT_dLDis(P,T,coef):
+    r = 8.314462 / 1000
+    a = coef["a"]
+    A1 = coef["A1"]
+    E1 = coef["E1"]
+    A2 = coef["A2"]
+    E2 = coef["E2"]
+    x=1
+    K1=calcK(A1,E1,T,x)
+    K2=calcK(A2,2*E2,T,x)
+    #plt.figure()
+    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
+    #X=dTheta/dP
+    num= a*P(2*K1*T**2)*(E1+r*T)*(a*K2)
+    return (Y1*Z1+Y2*Z2)/X
+addModel('dLDis',dlDisNames,dlDisBounds,theta_dLDis,dPdT_dLDis)
 
 #UnilanPurewal Model
 unilanPurewalNames=["nmax","deltaS","vmax","Emin","Emax"]
@@ -177,18 +211,23 @@ addModel('sips',sipsNames,sipsBounds,theta_sips,dPdT_sips)
 
 
 class isotherm():
-    def __init__(self,name,numThreads=48):
+    def __init__(self,name,numThreads=48,isAbsolute=False):
         self.name=name
         self.numThreads=numThreads
         self.bounds=bounds[name]
         self.names=coefNames[name]
-
+        self.isAbsolute=isAbsolute
     def diff_evol(self,bounds,p,ads,den,i,queue):
             strat='randtobest1exp'#'randtobest1bin'
             queue.put(differential_evolution(func=self.objective,bounds=bounds,args=(p,ads,den),seed=i,disp=False,tol=.006,maxiter=10000,
                                                 strategy=strat,init='random'))
-
-    def genExcess(self,p,t,a,den):
+    def calcExcess(self,calcPress,ads,den,t,a):
+        p=np.array(calcPress)
+        den=np.array(den)
+        vmax = a["vmax"]
+        #dynamic adsorbed phase volume assumption
+        return ads-1000*(vmax*den)*self.theta(p,t,a)
+    def genExcess(self,p,t,a,den,isAbsolute=False):
             #density in mol/m^3
             #nmax in mols
             #vmax in m^3/g
@@ -197,12 +236,13 @@ class isotherm():
             den=np.array(den)
             nmax = a["nmax"]
             vmax = a["vmax"]
+            if (isAbsolute):
+                #absolute adsorption
+                return 1000*(nmax)*self.theta(p,t,a)
             #dynamic adsorbed phase volume assumption
             return 1000*(nmax-vmax*den)*self.theta(p,t,a)
             #stagnant adsorbed phase volume assumption
             #return 1000*nmax*self.theta(p,t,a)-vmax*den
-            #absolute adsorption
-            #return 1000*(nmax)*self.theta(p,t,a)
     def objective(self,params, p, ads,den):
             """Calculate total residual for fits of General Langmuir Isotherms to several data sets."""
             resid =np.array([])
@@ -210,7 +250,7 @@ class isotherm():
             params=dict(zip(self.names,params))
             # make residual per data set
             for temp in ads:
-                modelData = self.genExcess(p[temp],float(temp),params,den[temp])
+                modelData = self.genExcess(p[temp],float(temp),params,den[temp],self.isAbsolute)
                 curAds=np.array(ads[temp])
                 curResid=np.square(curAds - modelData)
                 if resid.size==0:
@@ -261,7 +301,11 @@ class isotherm():
 
             coef['rssr']=rssr
             saveFitData(name+self.name,coef)
-        return coef, den,calcPress
+        #we need to calculate excess uptake if given absolute uptake
+        if self.isAbsolute:
+            for temp in ads:
+                ads[temp] = self.calcExcess(calcPress[temp],ads[temp],den[temp],float(temp),coef)
+        return coef, den,calcPress,ads
 
 
     def theta(self,p,t,a):

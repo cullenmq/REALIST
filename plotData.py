@@ -236,6 +236,8 @@ def plotTotal(deltaH,absUptake,lineType,xlbl,ylbl,pltname,gasName,T=273,n=1,maxT
     plt.savefig(pltname)
 
 def addPlot(x,y,T,sym,minTemp=230,maxTemp=400,labels=None):
+    #add in some "cushion" so that the last isotherm isnt completely yellow
+    maxTemp=maxTemp*1.05
     midTemp=(minTemp+maxTemp)/2
     if(T<=midTemp):
             fact=(midTemp-minTemp)

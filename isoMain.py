@@ -1,12 +1,13 @@
 import numpy as np
-from parseData import loadData,grabAdsorption,saveFile,convBartoMPa
+from parseData import loadData,grabAdsorption,saveFile,convBartoMPa,loadSampleData
 from analyzeData import  absAds,calcQstInt,findAdsDensity,AdsLayerGrowth,calcUptake,adjustPressure
 from plotData import plotTotal,plotVolTotal,plotExcessUptake
 from pathlib import Path
 import os
 import matplotlib.pyplot as plt
+from userConfig import *
 from isotherm import isotherm
-def startRun(names,bulkDens,skelDens,Vpore,gasName,model="dL",useFugacity=True,RECALC_FITS=False,CLOSE_FIGS=True,numThreads=48):
+def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_FITS=False,CLOSE_FIGS=True,numThreads=48):
     #excess data, T,P,n
     TAll={}
     PAll={}
@@ -43,29 +44,41 @@ def startRun(names,bulkDens,skelDens,Vpore,gasName,model="dL",useFugacity=True,R
         Path(name+'Results'+"/"+gasName).mkdir(parents=True, exist_ok=True)
         os.chdir(name+'Results'+"/"+gasName)
         isBar= True
-        #####Step 1: Load Excess Uptake Data from csv file########
-        TAll[name], PAll[name], adsAll[name]=loadData(fileName=homeDir+'/rawData/'+name+'Excess.csv', isBar=isBar)
+        #####Step 1a: Load Sample Data from JSON file########
+        #only load from Json if sample params has not been passed in as a dict
+        if sampleParams is None:
+            sampleParams=loadSampleData(fileName=homeDir+'/rawData/'+name+'.json')
+        bulkDens=sampleParams["bulkDens"]
+        skelDens=sampleParams["skelDens"]
+        SSA=sampleParams["SSA"]
+        Vpore=sampleParams["Vpore"]
+        #####Step 1b: Load Excess Uptake Data from csv file########
+        TAll[name], PAll[name], adsAll[name],isAbsolute=loadData(fileName=homeDir+'/rawData/'+name+gasName, isBar=isBar)
+
         #PAll[name], adsAll[name] =grabAdsorption(adsAll[name], PAll[name])
 
         #####Step 2: Run fit (or grab existing fit from file)########
         isoTest=isotherm(model,numThreads=numThreads)
-        coefAll[name],denAll[name],adjPressAll[name]=isoTest.runFit(PAll[name], adsAll[name],gasName=gasName,useFugacity= useFugacity,isRunFit=RECALC_FITS, name=name)
+        coefAll[name],denAll[name],adjPressAll[name],adsAll[name]=isoTest.runFit(PAll[name], adsAll[name],gasName=gasName,useFugacity= useFugacity,isRunFit=RECALC_FITS, name=name)
 
         ######Step 3: Run analysis on fitted data
         #3a: find adsorption density, void fraction
         adsRhoAll[name]=findAdsDensity(coefAll[name])
         #Xpore Common
-        Xpore[name]=Vpore[name]*bulkDens[name]
+        Xpore[name]=Vpore*bulkDens
+        XporeName="XCommon"
         #Xpore,best (skeletal)
-        #Xpore[name]=1-bulkDens[name]/skelDens[name]
+        #Xpore[name]=1-bulkDens/skelDens
+        #XporeName="XBest"
         #Xpore swollen
-        #Xpore[name]=Vpore[name]/(Vpore[name]+1/skelDens[name])
+        #Xpore[name]=Vpore/(Vpore+1/skelDens)
+        #XporeName="XSwollen"
         #3b: calculate volumetric uptake
         tempPress=np.arange(0.0001, 10.0, 0.01)
         #tempPress=np.arange(0.0001, 0.1, 0.001)
         yFitAll[name],fitPress,adjFitPressAll[name],rssrAll[name],totalVolAdsAll[name], totalVolAdsFitAll[name],totalVol5bar[name]=calcUptake(
                                                                                               ads=adsAll[name],coef=coefAll[name],gasName=gasName,
-                                                                                              sampBulkDens=bulkDens[name],tempPress=tempPress,
+                                                                                              sampBulkDens=bulkDens,tempPress=tempPress,
                                                                                               Xpore=Xpore[name],den=denAll[name],
                                                                                               useFugacity=useFugacity,isoModel=isoTest)
 
@@ -105,8 +118,9 @@ def startRun(names,bulkDens,skelDens,Vpore,gasName,model="dL",useFugacity=True,R
         ########Step 5: Save data to be read by plotting code
         params=isoTest.names
         info={"Sample Name":name+"_"+model}
-        for a in params:
-            info.update({a:coefAll[name][a]})
+        info.update({"Xpore Model":XporeName})
+        for i,a in enumerate(params):
+            info.update({a:[coefAll[name][a],str(isoTest.bounds[i])]})
         info.update({'adsRho (mmol/ml)':adsRhoAll[name]})
         info.update({'RSSR':rssrAll[name]})
         data={'Raw Press (MPa)':newP,'Raw Adjusted Press (MPa)':adjPressAll[name],'Excess (mmol/g)':adsAll[name],'Total Vol (V/V)':totalVolAds,'fitPress (MPa)':fitPress,'Adjusted Fit Press (MPa)':adjFitPressAll[name],'Excess Fit (mmol/g)':yFitAll[name],'Total Vol Fit (V/V)':totalVolAdsFit, 'adjustedModelPress':calcPress,'actualPress':actualPress,
@@ -122,28 +136,7 @@ def startRun(names,bulkDens,skelDens,Vpore,gasName,model="dL",useFugacity=True,R
 
 
 if __name__ == '__main__':
-    names=[]
-    gasName="Hydrogen"
-    #gasName="CarbonDioxide"
-    useFugacity= True
-    #parameter to force recalculating of fits, even if fit was already done
-    RECALC_FITS=False
-    #Closes figures automatically, otherwise you have to manually close them to continue 
-    CLOSE_FIGS=False
-    #names.append("ET095")
-    #names.append("ET094")
-    names.append("P2H2")
-    bulkDens={"MSC30":0.170,"ET094":0.170,"ET095":0.163,"EH046":0.142,"P2H2":0.142}
-    Vpore={"ET094":1.13,"ET095":1.22,"EH046":1.66,"MSC30":1.5,"P2H2":1.63}
-    SSA={"ET094":1994,"ET095":2108,"EH046":3806,"MSC30":3350,"P2H2":3300}
-    skelDens={"MSC30":2.1,"ET094":2.03,"ET095":2.05,"EH046":1.73,"P2H2":1.73}
-    models = []
-    #models.append("dL")
-    #models.append("coAds")
-    models.append("unilan")
-    #models.append("unilanPurewal")
-    #models.append("toth")
-    #models.append("sips")
+
     for model in models:
         print("Using model: {}".format(model))
-        startRun(names=names,bulkDens=bulkDens,skelDens=skelDens,Vpore=Vpore,useFugacity=useFugacity,RECALC_FITS=RECALC_FITS,CLOSE_FIGS=CLOSE_FIGS,gasName=gasName,model=model,numThreads=6)
+        startRun(names=names, useFugacity=useFugacity,RECALC_FITS=RECALC_FITS,CLOSE_FIGS=CLOSE_FIGS,gasName=gasName,model=model,numThreads=numThreads)

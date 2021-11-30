@@ -16,7 +16,12 @@ def loadFitData(name):
 def saveFitData(name,coef):
     json.dump(coef, open(name+"_fit.json", 'w'))
 
-
+"""Returns sample microstructure data from JSON file"""
+def loadSampleData(fileName):
+    if not os.path.isfile(fileName):
+        raise NameError("Sample parameter file does not exist!")
+    print("loading fit from file")
+    return json.load(open(fileName))
 """Returns data from an excel spreadsheet in the form of T(K),P(MPa), and ads (mmol/g)"""
 #data is in mmol/g, MPa, and K
 def loadData(fileName='sampleData.csv',isBar=True):
@@ -26,6 +31,17 @@ def loadData(fileName='sampleData.csv',isBar=True):
     P = {}
     # 1D array of temperatures
     T = []
+    isAbsolute=False
+    if(os.path.exists(fileName+'Excess.csv')):
+        print("Excess file exists!")
+        isAbsolute=False
+        fileName=fileName+'Excess.csv'
+    elif (os.path.exists(fileName+'Absolute.csv')):
+        print("Absolute file exists!")
+        isAbsolute=True
+        fileName=fileName+'Absolute.csv'
+    else:
+        raise FileNotFoundError
     with open(fileName) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         if(isBar):
@@ -36,6 +52,8 @@ def loadData(fileName='sampleData.csv',isBar=True):
         for row in csv_reader:
             if line_count == 0:
                 T=list(filter(None, row))
+                #remove T floating point errors
+                T = [str(round(float(num), 2)) for num in T]
                 #make array elements for pressure and composition
                 for temp in T:
                     ads[str(temp)]=[]
@@ -51,7 +69,7 @@ def loadData(fileName='sampleData.csv',isBar=True):
                         P[str(temp)].append(float(row[3*i])/conv)
                         ads[str(temp)].append(float(row[3*i+1]))
             line_count+=1
-    return T,P,ads
+    return T,P,ads,isAbsolute
 def grabAdsorption(ads,press):
     newAds= {}
     newPress= {}
@@ -85,7 +103,11 @@ def saveFile(fit,data):
     worksheet['fit'] = workbook.add_worksheet('Fit Parameters')
     for i,name in enumerate(fit):
         worksheet['fit'].write(i,0, name)
-        worksheet['fit'].write(i,1,fit[name])
+        if type(fit[name]) is not list:
+            worksheet['fit'].write(i,1,fit[name])
+        else:
+            worksheet['fit'].write(i,1,fit[name][0])
+            worksheet['fit'].write(i,2,fit[name][1])
     for i, names in enumerate(data):
         curData=data[names]
         for temp in data[names]:
