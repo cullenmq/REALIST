@@ -54,7 +54,8 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
         Vpore=sampleParams["Vpore"]
         #####Step 1b: Load Excess Uptake Data from csv file########
         TAll[name], PAll[name], adsAll[name],isAbsolute=loadData(fileName=homeDir+'/rawData/'+name+gasName, isBar=isBar)
-
+        if (OVERRIDE_ABSOLUTE):
+            isAbsolute=True
         #PAll[name], adsAll[name] =grabAdsorption(adsAll[name], PAll[name])
 
         #####Step 2: Run fit (or grab existing fit from file)########
@@ -74,7 +75,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
         #Xpore[name]=Vpore/(Vpore+1/skelDens)
         #XporeName="XSwollen"
         #3b: calculate volumetric uptake
-        tempPress=np.arange(0.0001, 10.0, 0.01)
+        tempPress=np.arange(0.0001, MAX_PLOT_PRESS, 0.01)
         #tempPress=np.arange(0.0001, 0.1, 0.001)
         yFitAll[name],fitPress,adjFitPressAll[name],rssrAll[name],totalVolAdsAll[name], totalVolAdsFitAll[name],totalVol5bar[name]=calcUptake(
                                                                                               ads=adsAll[name],coef=coefAll[name],gasName=gasName,
@@ -102,7 +103,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
         #calcPress is usually fugacity ("input" used to correct for nonideal gas behaviour)
         #we plot against "actual press". If our simplistic models took nonidealities into account we wouldnt need calcPress
 
-        tempPress=np.logspace(-4,1,50)#np.arange(0.0001, 10.0, 0.05)
+        tempPress=np.logspace(-4,np.log10(MAX_PLOT_PRESS),50)#np.arange(0.0001, 10.0, 0.05)
         actualPress,calcPress=adjustPressure(PAll[name],tempPress,useFugacity=useFugacity,gasName=gasName)
 
 

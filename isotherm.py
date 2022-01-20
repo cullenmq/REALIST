@@ -20,6 +20,36 @@ def addModel(name,coefs,bound,theta,dPdT):
     bounds[name]=bound
     thetas[name]=theta
     dPdTs[name]=dPdT
+ # Single Langmuir
+slNames=["nmax","vmax","A1","E1"]
+
+slBounds=[(0.0,0.1),(0.0, 1e-5), (0.0,10),(0.0,30)]
+def theta_sL(p,t,coef):
+        A1 = coef["A1"]
+        E1 = coef["E1"]
+        #x=coef["x"]
+        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
+        #assume both sites are equal
+        #K2=K1
+        return (K1*p/(1+K1*p))
+def dPdT_sL(P,T,coef):
+    r = 8.314462 / 1000
+    A1 = coef["A1"]
+    E1 = coef["E1"]
+    #x=coef["x"]
+    K1=calcK(A1,E1,T,1)
+    #plt.figure()
+    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
+    #X=dTheta/dP
+    X= (K1/((1+K1*P)**2))
+    #Y=dTheta/dK
+    Y1=(P/((1+K1*P)**2))
+    #Z=dk/dT
+    #note:square root has an extra 0.5 in front
+    mult=1
+    Z1=-K1*((mult*r*T+E1)/(r*T**2))
+    return (Y1*Z1)/X
+addModel('sL',slNames,slBounds,theta_sL,dPdT_sL)
 ## DUAL Langmuir
 dlNames=["nmax","a","vmax","A1","E1","A2","E2"]
 

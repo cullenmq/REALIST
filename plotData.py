@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+from userConfig import *
 #from analyzeData import calcDensity,calcVolUptake
 matplotlib.use("TkAgg")
 def getMinMax(press):
@@ -22,6 +23,7 @@ def plotIsoHeat(actualPress,fa1,theta,Qst,name):
         addPlot(actualP, Qst[temp], T, '-',minTemp=TMin,maxTemp=TMax)
     plt.ylabel("\u0394Hads (kJ/mol)", fontsize=12)
     plt.xlabel("Pressure (MPa)", fontsize=12)
+    plt.ylim(DELTAH_MIN,DELTAH_MAX)
     plt.title(name)
     plt.draw()
     plt.pause(0.001)
@@ -32,6 +34,7 @@ def plotIsoHeat(actualPress,fa1,theta,Qst,name):
         addPlot(fa1[temp], Qst[temp], T, '-',minTemp=TMin,maxTemp=TMax)
     plt.ylabel("\u0394Hads (kJ/mol)", fontsize=12)
     plt.xlabel("Absolute Uptake (mmol/g)", fontsize=12)
+    plt.ylim(DELTAH_MIN, DELTAH_MAX)
     plt.title(name)
     plt.draw()
     plt.pause(0.001)
@@ -43,6 +46,7 @@ def plotIsoHeat(actualPress,fa1,theta,Qst,name):
         addPlot(theta[temp], Qst[temp], T, '-',minTemp=TMin,maxTemp=TMax)
     plt.ylabel("\u0394Hads (kJ/mol)", fontsize=12)
     plt.xlabel("Site Occupancy Fraction", fontsize=12)
+    plt.ylim(DELTAH_MIN, DELTAH_MAX)
     plt.title(name)
     plt.draw()
     plt.pause(0.001)
@@ -57,7 +61,7 @@ def plotAbsUptake(actualPress,fa1,name,newFigure):
         addPlot(actualP, fa1[temp],T, '-.',minTemp=Tmin,maxTemp=Tmax)
     plt.ylabel("Ads(mmol/g)")
     plt.xlabel("Pressure (MPa)")
-    plt.ylim(0, 22)
+    plt.ylim(0, ABSOLUTE_MAX)
     plt.title(name)
     plt.draw()
     plt.pause(0.01)
@@ -70,8 +74,8 @@ def plotExcessUptake(ads,p,y_fit,tempPress,name):
         addPlot(p[temp], ads[temp],T, 'o',minTemp=Tmin,maxTemp=Tmax)
         addPlot(tempPress[temp], y_fit[temp],T, '-',labels= str(("%.1f" % T))+'K',minTemp=Tmin,maxTemp=Tmax)
     plt.ylabel("Excess Uptake (mmol/g)",fontsize=12)
-    plt.ylim(0, 22)
-    plt.xlim(0, 10)
+    plt.ylim(0, EXCESS_MAX)
+    plt.xlim(0, MAX_PLOT_PRESS)
     plt.xlabel("Pressure (MPa)",fontsize=12)
     plt.title(name)
     plt.legend()
@@ -115,7 +119,7 @@ def plotVolTotal(totVol,totVolFit,absUptake,lineType,xlbl,ylbl,pltname,gasName,T
                     if press5bar ==-1:
                         print("5 bar not found!")
             isFirst=False
-            press=np.arange(0.5, 10.0, 0.01)
+            press=np.arange(0.5, MAX_PLOT_PRESS, 0.01)
             gasRho=calcDensity(press, T, gasName)
             excess,total=calcVolUptake(0,gasRho,0,1)
             #subtract away 5 bar
