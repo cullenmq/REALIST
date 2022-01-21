@@ -6,7 +6,11 @@ def sqrt(x):
     return np.sqrt(x)
 def findAdsDensity(coef):
     #nmax in mol/g, vmax in m3/g
-    adsrho = coef['nmax']*1e3/coef['vmax']/1e6
+    #if vmax is zero divide by zero error! fix by manually setting adsrho to -1 if this is the case
+    try:
+        adsrho = coef['nmax']*1e3/coef['vmax']/1e6
+    except:
+        adsrho=-1
     print("Adsorbed Phase Density = {} mmol/ml".format(adsrho))
     print("Adsorbed Molar Volume = {} m\u00b3/mol".format(0.001/adsrho))
     return adsrho
