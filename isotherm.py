@@ -23,7 +23,7 @@ def addModel(name,coefs,bound,theta,dPdT):
  # Single Langmuir
 slNames=["nmax","vmax","A1","E1"]
 
-slBounds=[(0.0,0.1),(0.0, 1e-5), (0.0,10),(0.0,30)]
+slBounds=[(0.0,0.1),(1e-10, 1e-5), (0.0,10),(0.0,30)]
 def theta_sL(p,t,coef):
         A1 = coef["A1"]
         E1 = coef["E1"]
