@@ -75,7 +75,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
         #Xpore[name]=Vpore/(Vpore+1/skelDens)
         #XporeName="XSwollen"
         #3b: calculate volumetric uptake
-        tempPress=np.arange(0.0001, MAX_PLOT_PRESS, 0.01)
+        tempPress=np.arange(0.0001, MAX_PLOT_PRESS, STEP_PRESS)
         #tempPress=np.arange(0.0001, 0.1, 0.001)
         yFitAll[name],fitPress,adjFitPressAll[name],rssrAll[name],totalVolAdsAll[name], totalVolAdsFitAll[name],totalVol5bar[name]=calcUptake(
                                                                                               ads=adsAll[name],coef=coefAll[name],gasName=gasName,
