@@ -41,6 +41,7 @@ def loadData(fileName='sampleData.csv',isBar=True):
         isAbsolute=True
         fileName=fileName+'Absolute.csv'
     else:
+        print("File does not exist {}",fileName)
         raise FileNotFoundError
     with open(fileName) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
