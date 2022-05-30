@@ -2,6 +2,7 @@ import numpy as np
 from parseData import saveFitData,loadFitData
 from EOS import calcDensity,calcFugacity,initFugacity
 from multiprocessing import Process,Queue
+import lmfit
 from scipy.optimize import differential_evolution
 
 coefNames={} #list of names for coefficients for specific model
@@ -9,9 +10,8 @@ bounds={} #list of bounds for each coef (must equal coefNames)
 thetas={} #theta function to call for specific model
 dPdTs={} #dp/dt function to call for specific model (used for enthalpy)
 eqns={}# text format for theta equation
-
-#temperature dependence of the prefactor denominator 1/T^x
 x=0.5
+
 
 ### Calculating K, denominator either no T, T, or square root T dependence!
 def calcK(A,E,T,x):
@@ -92,6 +92,61 @@ def dPdT_dL(P,T,coef):
     #return (1-a)*(-P*E1/(r*T**2)-(mult*P/T))+a*(-P*E2/(r*T**2)-(mult*P/T))
 
 addModel('dL',dlNames,dlBounds,theta_dL,dPdT_dL,dlEqn)
+
+## Triple Langmuir
+tlNames=["nmax","a2","a3","vmax","A1","E1","A2","E2","A3","E3"]
+
+tlBounds=[(0.0,0.1),(0,0.5),(0,0.5),(1e-10, 1e-5),(0.0,10),(0.0,30),(0,10),(0.0, 30),(0,10),(0.0, 30)]
+def theta_tL(p,t,coef):
+        a2 = coef["a2"]
+        a3 = coef["a3"]
+        A1 = coef["A1"]
+        E1 = coef["E1"]
+        A2 = coef["A2"]
+        E2 = coef["E2"]
+        A3 = coef["A3"]
+        E3 = coef["E3"]
+        #x=coef["x"]
+        K1=calcK(A1,E1,t,0)#K1=a4*np.exp(a5/r/t)/denom
+        #assume both sites are equal
+        #K2=K1
+        K2=calcK(A2,E2,t,0)#a6*np.exp(a7/r/t)/denom
+        K3=calcK(A3,E3,t,0)
+        return ((1-a2-a3)*(K1*p/(1+K1*p))+a2*(K2*p/(1+K2*p))+a3*(K3*p/(1+K3*p)))
+def dPdT_tL(P,T,coef):
+    r = 8.314462 / 1000
+    a2 = coef["a2"]
+    a3 = coef["a3"]
+    A1 = coef["A1"]
+    E1 = coef["E1"]
+    A2 = coef["A2"]
+    E2 = coef["E2"]
+    A3 = coef["A3"]
+    E3 = coef["E3"]
+    #x=coef["x"]
+    K1=calcK(A1,E1,T,0)
+    K2=calcK(A2,E2,T,0)
+    K3=calcK(A3,E3,T,0)
+    #plt.figure()
+    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
+    #X=dTheta/dP
+    X= (1-a2-a3)*(K1/((1+K1*P)**2))+a2*(K2/((1+(K2)*P)**2))+a3*(K3/((1+(K3)*P)**2))
+    #Y=dTheta/dK
+    Y1=(1-a2-a3)*(P/((1+K1*P)**2))
+    Y2=a2*(P/((1+(K2)*P)**2))
+    Y3=a3*(P/((1+(K3)*P)**2))
+    #Z=dk/dT
+    #note:square root has an extra 0.5 in front
+    #if(isSqRoot):
+     #   mult=0.5
+    #else:
+     #   mult=1
+    mult=0
+    Z1=-K1*((mult*r*T+E1)/(r*T**2))
+    Z2=-K2*((mult*r*T+E2)/(r*T**2))
+    Z3=-K3*((mult*r*T+E3)/(r*T**2))
+    return (Y1*Z1+Y2*Z2+Y3*Z3)/X
+addModel('tL',tlNames,tlBounds,theta_tL,dPdT_tL)
 
 ## Triple Langmuir
 tlNames=["nmax","a2","a3","vmax","A1","E1","A2","E2","A3","E3"]
