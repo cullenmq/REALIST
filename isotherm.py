@@ -20,15 +20,16 @@ def addModel(name,coefs,bound,theta,dPdT):
     bounds[name]=bound
     thetas[name]=theta
     dPdTs[name]=dPdT
- # Single Langmuir
+
+## Single Langmuir
 slNames=["nmax","vmax","A1","E1"]
 
-slBounds=[(0.0,0.1),(1e-10, 1e-5), (0.0,10),(0.0,30)]
+slBounds=[(0.0,0.1),(1e-10, 1.64e-6), (0.0,10),(0.0,30)]
 def theta_sL(p,t,coef):
         A1 = coef["A1"]
         E1 = coef["E1"]
         #x=coef["x"]
-        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
+        K1=calcK(A1,E1,t,0)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
         return (K1*p/(1+K1*p))
@@ -37,23 +38,16 @@ def dPdT_sL(P,T,coef):
     A1 = coef["A1"]
     E1 = coef["E1"]
     #x=coef["x"]
-    K1=calcK(A1,E1,T,1)
-    #plt.figure()
-    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
-    #X=dTheta/dP
-    X= (K1/((1+K1*P)**2))
-    #Y=dTheta/dK
-    Y1=(P/((1+K1*P)**2))
-    #Z=dk/dT
     #note:square root has an extra 0.5 in front
-    mult=1
-    Z1=-K1*((mult*r*T+E1)/(r*T**2))
-    return (Y1*Z1)/X
+    mult=0
+    Z1=-P/(r*T**2)*(E1+r*T*mult)
+    return Z1
 addModel('sL',slNames,slBounds,theta_sL,dPdT_sL)
+
 ## DUAL Langmuir
 dlNames=["nmax","a","vmax","A1","E1","A2","E2"]
 
-dlBounds=[(0.0,0.1),(0.29,1),(0.0, 1e-5), (0.0,10),(0.0,30),(0.0,10),(0.0, 30)]
+dlBounds=[(0.0,0.1),(0.0,1),(1e-10, 1.64e-6), (0.0,10),(0.0,30),(0.0,10),(0.0,30)]
 def theta_dL(p,t,coef):
         a = coef["a"]
         A1 = coef["A1"]
@@ -61,10 +55,10 @@ def theta_dL(p,t,coef):
         A2 = coef["A2"]
         E2 = coef["E2"]
         #x=coef["x"]
-        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
+        K1=calcK(A1,E1,t,0)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
-        K2=calcK(A2,E2,t,1)#a6*np.exp(a7/r/t)/denom
+        K2=calcK(A2,E2,t,0)#a6*np.exp(a7/r/t)/denom
         return ((1-a)*(K1*p/(1+K1*p))+a*(K2*p/(1+K2*p)))
 def dPdT_dL(P,T,coef):
     r = 8.314462 / 1000
@@ -74,8 +68,8 @@ def dPdT_dL(P,T,coef):
     A2 = coef["A2"]
     E2 = coef["E2"]
     #x=coef["x"]
-    K1=calcK(A1,E1,T,1)
-    K2=calcK(A2,E2,T,1)
+    K1=calcK(A1,E1,T,0)
+    K2=calcK(A2,E2,T,0)
     #plt.figure()
     #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
     #X=dTheta/dP
@@ -89,11 +83,66 @@ def dPdT_dL(P,T,coef):
      #   mult=0.5
     #else:
      #   mult=1
-    mult=1
+    mult=0
     Z1=-K1*((mult*r*T+E1)/(r*T**2))
     Z2=-K2*((mult*r*T+E2)/(r*T**2))
     return (Y1*Z1+Y2*Z2)/X
 addModel('dL',dlNames,dlBounds,theta_dL,dPdT_dL)
+
+## Triple Langmuir
+tlNames=["nmax","a2","a3","vmax","A1","E1","A2","E2","A3","E3"]
+
+tlBounds=[(0.0,0.1),(0,0.5),(0,0.5),(1e-10, 1e-5),(0.0,10),(0.0,30),(0,10),(0.0, 30),(0,10),(0.0, 30)]
+def theta_tL(p,t,coef):
+        a2 = coef["a2"]
+        a3 = coef["a3"]
+        A1 = coef["A1"]
+        E1 = coef["E1"]
+        A2 = coef["A2"]
+        E2 = coef["E2"]
+        A3 = coef["A3"]
+        E3 = coef["E3"]
+        #x=coef["x"]
+        K1=calcK(A1,E1,t,0)#K1=a4*np.exp(a5/r/t)/denom
+        #assume both sites are equal
+        #K2=K1
+        K2=calcK(A2,E2,t,0)#a6*np.exp(a7/r/t)/denom
+        K3=calcK(A3,E3,t,0)
+        return ((1-a2-a3)*(K1*p/(1+K1*p))+a2*(K2*p/(1+K2*p))+a3*(K3*p/(1+K3*p)))
+def dPdT_tL(P,T,coef):
+    r = 8.314462 / 1000
+    a2 = coef["a2"]
+    a3 = coef["a3"]
+    A1 = coef["A1"]
+    E1 = coef["E1"]
+    A2 = coef["A2"]
+    E2 = coef["E2"]
+    A3 = coef["A3"]
+    E3 = coef["E3"]
+    #x=coef["x"]
+    K1=calcK(A1,E1,T,0)
+    K2=calcK(A2,E2,T,0)
+    K3=calcK(A3,E3,T,0)
+    #plt.figure()
+    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
+    #X=dTheta/dP
+    X= (1-a2-a3)*(K1/((1+K1*P)**2))+a2*(K2/((1+(K2)*P)**2))+a3*(K3/((1+(K3)*P)**2))
+    #Y=dTheta/dK
+    Y1=(1-a2-a3)*(P/((1+K1*P)**2))
+    Y2=a2*(P/((1+(K2)*P)**2))
+    Y3=a3*(P/((1+(K3)*P)**2))
+    #Z=dk/dT
+    #note:square root has an extra 0.5 in front
+    #if(isSqRoot):
+     #   mult=0.5
+    #else:
+     #   mult=1
+    mult=0
+    Z1=-K1*((mult*r*T+E1)/(r*T**2))
+    Z2=-K2*((mult*r*T+E2)/(r*T**2))
+    Z3=-K3*((mult*r*T+E3)/(r*T**2))
+    return (Y1*Z1+Y2*Z2+Y3*Z3)/X
+addModel('tL',tlNames,tlBounds,theta_tL,dPdT_tL)
 
 dlDisNames=["nmax","a","vmax","A1","E1","A2","E2"]
 
