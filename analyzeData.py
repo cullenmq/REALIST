@@ -103,17 +103,19 @@ def calcVolUptake(exUptake,gasRho,bulkDens,Xpore,gasName="Methane"):
     totalVolUptake=excessVolUptake+(gasRho*Xpore)*gasSTP
     return excessVolUptake, totalVolUptake
 
-def calcQstInt(Press,actualPress,coef,adsRho,fa1,name,closeFig,isoModel,gasName):
+def calcQstInt(fitPress,actualPress,coef,adsRho,fa1,name,closeFig,isoModel,gasName):
     Qst={}
     theta={}
     liqmolarv = 0.001 / adsRho
-    for temp in Press:
+    for temp in fitPress:
         T=float(temp)
         dens=[]
-        for press in Press[temp]:
+
+        #todo: Check if press or actualPress is fugacity
+        for press in actualPress[temp]:
             dens.append(calcDensity(press,T,gasName))
         dens=np.array(dens)
-        P=np.array(Press[temp])
+        P=np.array(fitPress[temp])
         #Qst=-TdP/dT(vgas-vads)
         #-dP/dT=(dTheta/dP)^-1*dtheta/dT
         Qst[temp]= -T*(1/dens-liqmolarv)*1000*isoModel.dPdT(P,T,coef)
