@@ -1,6 +1,13 @@
 
 import CoolProp as CP
 from CoolProp.CoolProp import PropsSI
+
+def critT(gas):
+    return PropsSI("Tcrit",gas)
+#Input: T in K
+#output: P in MPa
+def calcSatPress(t,gas):
+    return PropsSI('P','T',t,'Q',1,gas)/1e6
 #inputs: P in MPa, T in K
 #outputs: D in mol/m^3
 def calcDensity(p,t,gas):

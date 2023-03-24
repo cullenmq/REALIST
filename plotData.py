@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-from userConfig import *
+from config import *
+from matplotlib.widgets import Slider,Button,CheckButtons
 #from analyzeData import calcDensity,calcVolUptake
 matplotlib.use("TkAgg")
 def getMinMax(press):
@@ -66,6 +67,91 @@ def plotAbsUptake(actualPress,fa1,name,newFigure):
     plt.draw()
     plt.pause(0.01)
     plt.savefig(name + '_AbsUptakevsPress.png')
+
+def update(val):
+    coef={}
+    for name in slider:
+        coef[name]=slider[name].val
+    for temp in yFitLine:
+        y_fit=model.genExcess(paramPress[temp], t=float(temp),a=coef,den=paramDens[temp])
+        yFitLine[temp].set_ydata(y_fit)
+    fig.canvas.draw_idle()
+
+
+def calc(event):
+    for name in slider:
+        pass
+
+def reset(event):
+    for name in slider:
+        slider[name].reset()
+
+
+def plotExcessUptakeParams(ads,p,coef,fitPress,fitDens,isoModel, tempPress,name):
+    global slider,paramPress,paramDens,fig,model
+    paramPress=fitPress
+    paramDens=fitDens
+    model=isoModel
+    slider={}
+    ax={}
+
+    fig, ax1=plt.subplots()
+    plt.subplots_adjust(left=0.1, bottom=0.5)
+    eqnname=isoModel.EqnName()
+    resetax = plt.axes([0, 0.3, 0.08, 0.08])
+
+    global button,check,minbutton
+    check={}
+    checkax={}
+    button = Button(resetax, 'Reset', hovercolor='0.975')
+    button.on_clicked(reset)
+    calcax = plt.axes([0, 0.2, 0.1, 0.08])
+    minbutton = Button(calcax, 'Minimize', hovercolor='0.975')
+    minbutton.on_clicked(calc)
+    #textax = plt.axes([0.4, 0.3, 0.1, 0.2])
+    #plt.text(0, 0, eqnname, fontsize=24)
+
+    i=0
+    for value in coef:
+        if value=="rssr":
+            continue
+        # Make a horizontal slider to control the frequency.
+        ax[value] = plt.axes([0.25, 0.02+(i*0.03), 0.65, 0.02])
+        #checkax[value]=plt.axes([0.1, 0.02+(i*0.03), 0.03, 0.02])
+        slider[value] = Slider(
+            ax=ax[value],
+            label=value,
+            valmin=isoModel.bounds[i][0],
+            valmax=isoModel.bounds[i][1],
+            valinit=coef[value],
+        )
+
+        slider[value].on_changed(update)
+        i+=1
+    checkax=plt.axes([0.1, 0.02, 0.1, 0.2])
+    check = CheckButtons(checkax, coef)
+
+
+    plt.gcf().text(0.2, 0.3, eqnname, fontsize=22)
+    plt.axes(ax1)
+
+    Tmin,Tmax=getMinMax(ads)
+    global yFitLine
+    yFitLine={}
+    for temp in ads:
+        T=float(temp)
+        addPlot(p[temp], ads[temp],T, 'o',minTemp=Tmin,maxTemp=Tmax)
+        y_fit=isoModel.genExcess(fitPress[temp], t=float(temp),a=coef,den=fitDens[temp])
+        yFitLine[temp],=addPlot(tempPress[temp], y_fit,T, '-',labels= str(("%.1f" % T))+'K',minTemp=Tmin,maxTemp=Tmax)
+    plt.ylabel("Excess Uptake (mmol/g)",fontsize=12)
+    plt.ylim(0, EXCESS_MAX)
+    plt.xlim(0, MAX_PLOT_PRESS)
+    plt.xlabel("Pressure (MPa)",fontsize=12)
+    plt.title(name)
+    plt.legend()
+    plt.draw()
+    plt.pause(0.001)
+    plt.savefig(name+'_ExcessvsPressFit.png')
 def plotExcessUptake(ads,p,y_fit,tempPress,name):
     plt.figure()
     Tmin,Tmax=getMinMax(ads)

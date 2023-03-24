@@ -8,27 +8,31 @@ coefNames={} #list of names for coefficients for specific model
 bounds={} #list of bounds for each coef (must equal coefNames)
 thetas={} #theta function to call for specific model
 dPdTs={} #dp/dt function to call for specific model (used for enthalpy)
+eqns={}# text format for theta equation
 
+#temperature dependence of the prefactor denominator 1/T^x
+x=0.5
 
 ### Calculating K, denominator either no T, T, or square root T dependence!
 def calcK(A,E,T,x):
     r = 8.314462 / 1000
     denom=T**x
     return A/denom*np.exp(E/r/T)
-def addModel(name,coefs,bound,theta,dPdT):
+def addModel(name,coefs,bound,theta,dPdT,eqn=None):
     coefNames[name]=coefs
     bounds[name]=bound
     thetas[name]=theta
     dPdTs[name]=dPdT
+    eqns[name]=eqn
  # Single Langmuir
-slNames=["nmax","vmax","A1","E1"]
+slNames=["nmax","vmax","A1","E1","x"]
 
-slBounds=[(0.0,0.1),(1e-10, 1e-5), (0.0,10),(0.0,30)]
+slBounds=[(0,0.1),(1e-7, 1e-6), (0.0,1),(0.0,100),(0,2)]
 def theta_sL(p,t,coef):
         A1 = coef["A1"]
         E1 = coef["E1"]
-        #x=coef["x"]
-        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
+        x=coef["x"]
+        K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
         return (K1*p/(1+K1*p))
@@ -36,24 +40,16 @@ def dPdT_sL(P,T,coef):
     r = 8.314462 / 1000
     A1 = coef["A1"]
     E1 = coef["E1"]
-    #x=coef["x"]
-    K1=calcK(A1,E1,T,1)
-    #plt.figure()
-    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
-    #X=dTheta/dP
-    X= (K1/((1+K1*P)**2))
-    #Y=dTheta/dK
-    Y1=(P/((1+K1*P)**2))
-    #Z=dk/dT
+    x=coef["x"]
     #note:square root has an extra 0.5 in front
-    mult=1
-    Z1=-K1*((mult*r*T+E1)/(r*T**2))
-    return (Y1*Z1)/X
+    mult=x
+    Z1=-P/(r*T**2)*(-r*T*mult+E1)
+    return Z1
 addModel('sL',slNames,slBounds,theta_sL,dPdT_sL)
 ## DUAL Langmuir
 dlNames=["nmax","a","vmax","A1","E1","A2","E2"]
-
-dlBounds=[(0.0,0.1),(0.29,1),(0.0, 1e-5), (0.0,10),(0.0,30),(0.0,10),(0.0, 30)]
+dlEqn=r'$\theta=(1-a)*\left(\frac{\frac{A_1}{T}e^{\frac{E_1}{RT}}P}{1+\frac{A_1}{T}e^{\frac{E_1}{RT}}P}\right)+a\left(\frac{\frac{A_2}{T}e^{\frac{E_2}{RT}}P}{1+\frac{A_2}{T}e^{\frac{E_2}{RT}}P}\right)$'
+dlBounds=[(0,0.2),(0.29,1),(1e-7, 1e-5), (0.0,10),(0.0,30),(0.0,10),(0.0, 30)]
 def theta_dL(p,t,coef):
         a = coef["a"]
         A1 = coef["A1"]
@@ -61,10 +57,10 @@ def theta_dL(p,t,coef):
         A2 = coef["A2"]
         E2 = coef["E2"]
         #x=coef["x"]
-        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
+        K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
-        K2=calcK(A2,E2,t,1)#a6*np.exp(a7/r/t)/denom
+        K2=calcK(A2,E2,t,x)#a6*np.exp(a7/r/t)/denom
         return ((1-a)*(K1*p/(1+K1*p))+a*(K2*p/(1+K2*p)))
 def dPdT_dL(P,T,coef):
     r = 8.314462 / 1000
@@ -74,8 +70,8 @@ def dPdT_dL(P,T,coef):
     A2 = coef["A2"]
     E2 = coef["E2"]
     #x=coef["x"]
-    K1=calcK(A1,E1,T,1)
-    K2=calcK(A2,E2,T,1)
+    K1=calcK(A1,E1,T,x)
+    K2=calcK(A2,E2,T,x)
     #plt.figure()
     #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
     #X=dTheta/dP
@@ -89,42 +85,39 @@ def dPdT_dL(P,T,coef):
      #   mult=0.5
     #else:
      #   mult=1
-    mult=1
+    mult=x
     Z1=-K1*((mult*r*T+E1)/(r*T**2))
     Z2=-K2*((mult*r*T+E2)/(r*T**2))
     return (Y1*Z1+Y2*Z2)/X
-addModel('dL',dlNames,dlBounds,theta_dL,dPdT_dL)
+    #return (1-a)*(-P*E1/(r*T**2)-(mult*P/T))+a*(-P*E2/(r*T**2)-(mult*P/T))
+
+addModel('dL',dlNames,dlBounds,theta_dL,dPdT_dL,dlEqn)
 
 dlDisNames=["nmax","a","vmax","A1","E1","A2","E2"]
 
-dlDisBounds=[(0.0,0.1),(0,1),(5e-7, 1e-5), (0.0,10),(0.0,30),(0.0,10),(0.0, 30),(0,3)]
+dlDisBounds=[(0.022,0.0221),(0.0033,.0036),(1.1e-6, 1.13e-6), (3.03e-2,3.08e-2),(6.07,6.09),(0.6,0.62),(19.6, 19.8)]
 def theta_dLDis(p,t,coef):
     a = coef["a"]
     A1 = coef["A1"]
     E1 = coef["E1"]
     A2 = coef["A2"]
     E2 = coef["E2"]
-    x=1
-    K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
+    K1=calcK(A1,E1,t,1/2)#K1=a4*np.exp(a5/r/t)/denom
     #assume both sites are equal
     #K2=K1
-    K2=calcK(A2,2*E2,t,x)#a6*np.exp(a7/r/t)/denom
+    K2=calcK(A2,2*E2,t,5/2)#a6*np.exp(a7/r/t)/denom
     return ((1-a)*(K1*p/(1+K1*p))+a*(np.sqrt(K2*p)/(1+np.sqrt(K2*p))))
 def dPdT_dLDis(P,T,coef):
     r = 8.314462 / 1000
     a = coef["a"]
-    A1 = coef["A1"]
     E1 = coef["E1"]
-    A2 = coef["A2"]
     E2 = coef["E2"]
-    x=1
-    K1=calcK(A1,E1,T,x)
-    K2=calcK(A2,2*E2,T,x)
     #plt.figure()
     #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
     #X=dTheta/dP
-    num= a*P(2*K1*T**2)*(E1+r*T)*(a*K2)
-    return (Y1*Z1+Y2*Z2)/X
+    molmult=0.5
+    dismult=5/2
+    return (1-a)*(-P*E1/(r*T**2)-(molmult*P/T))+a*(-2*E2*P/(r*T**2)-(dismult*P/T))
 addModel('dLDis',dlDisNames,dlDisBounds,theta_dLDis,dPdT_dLDis)
 
 #UnilanPurewal Model
@@ -159,7 +152,10 @@ def theta_unilan(p,t,a):
         Emax = a["Emax"]
         c=deltaS
         try:
-            x=(r*t)/(Emax-Emin)*np.log((r*t/c+p*np.exp(Emax/r/t))/(r*t/c+p*np.exp(Emin/r/t)))
+            num=r*t/c+p*np.exp(Emax/r/t)
+            denom=r*t/c+p*np.exp(Emin/r/t)
+            logTerm=np.log(num/denom)
+            x=(r*t)/(Emax-Emin)*logTerm
         except:
             pass
         return x
@@ -185,8 +181,8 @@ def theta_coAds(p,t,a):
     E1 = a["E1"]
     A2 = a["A2"]
     E2 = a["E2"]
-    K1=calcK(A1,E1,t)#a4*np.exp(a5/r/t)/denom
-    K2=calcK(A2,E2,t)#a6*np.exp(a7/r/t)/denom
+    K1=calcK(A1,E1,t,x)#a4*np.exp(a5/r/t)/denom
+    K2=calcK(A2,E2,t,x)#a6*np.exp(a7/r/t)/denom
     #assume both sites are equal
     #K2=K1
     intTerm=np.square(p)*K1*K2*np.exp(-Eint/r/t)
@@ -199,8 +195,8 @@ def dPdT_coAds(P,T,coef):
     A2 = coef['A2']
     E2 = coef['E2']
     B=1/(r*T)
-    K1=calcK(A1,E1,T)
-    K2=calcK(A2,E2,T)
+    K1=calcK(A1,E1,T,1)
+    K2=calcK(A2,E2,T,1)
     Ki=np.exp(Ei*B)
     return (P*(K2*Ki*T**2*(-E2-1/B)+ K1**2*K2*np.square(P)*(-E2+Ei-1/B)+K1*(Ki*T**2*(-E1-1/B)+K2*P*(T*(-2*E1-2*E2+2*Ei-4/B)+K2*P*(-E1+Ei-1/B)))))\
     /(T/B*(K1*K2*np.square(P)*(K1+K2)+4*K1*K2*P*T+T**2*Ki*(K1+K2)))
@@ -229,11 +225,11 @@ def theta_sips(p,t,a):
     c = a["c"]
     A1 = a["A1"]
     E1 = a["E1"]
-    K=calcK(A1,E1,t)
+    K=calcK(A1,E1,t,1)
     return (K*p)**c/(1+(K*p)**c)
 def dPdT_sips(P,T,coef):
     r = 8.314462 / 1000
-    E1 = a["E1"]
+    E1 = coef["E1"]
     return -P*(E1+r*T)/(r*T**2)
 addModel('sips',sipsNames,sipsBounds,theta_sips,dPdT_sips)
 
@@ -264,12 +260,17 @@ class isotherm():
             #convert lists to arrays
             p=np.array(p)
             den=np.array(den)
-            nmax = a["nmax"]
-            vmax = a["vmax"]
+            #SSA = a["SSA"]
+            #rhoAds = a["ρAds"]
+            #nmax=SSA/(6.022E23*15.7E-20)
+            #vmax=nmax/rhoAds/1000
+            nmax=a["nmax"]
+            vmax=a["vmax"]
             if (isAbsolute):
                 #absolute adsorption
                 return 1000*(nmax)*self.theta(p,t,a)
             #dynamic adsorbed phase volume assumption
+
             return 1000*(nmax-vmax*den)*self.theta(p,t,a)
             #stagnant adsorbed phase volume assumption
             #return 1000*nmax*self.theta(p,t,a)-vmax*den
@@ -337,7 +338,8 @@ class isotherm():
                 ads[temp] = self.calcExcess(calcPress[temp],ads[temp],den[temp],float(temp),coef)
         return coef, den,calcPress,ads
 
-
+    def EqnName(self):
+        return eqns.get(self.name)
     def theta(self,p,t,a):
         thetaModel= thetas.get(self.name)
         if thetaModel is not None:
@@ -353,6 +355,9 @@ class isotherm():
     def diffEV(self,p,ads,den):
         minimized_function=1e9
         numRuns=self.numThreads
+        numPoints=0
+        for t in p:
+            numPoints+= len(p[t])
         #lets do this in parallel
         jobs=[]
         queue = Queue()
@@ -374,6 +379,8 @@ class isotherm():
         print("coefs= {}".format(fin))
         rssr=np.sqrt(ssr)
         print("RSSR :{}".format(rssr))
+        rssr=rssr/numPoints
+        print("RSSR/point :{}".format(rssr))
         #for i,key in enumerate(a):
             #a[key]=fin[i]
         return fin,rssr

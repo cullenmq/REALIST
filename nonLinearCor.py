@@ -16,11 +16,11 @@ if __name__ == '__main__':
     gasName='Krypton'
     st = CP.AbstractState('HEOS', gasName)
 
-    press=np.arange(100, 10e6, 100)
+    press=np.arange(1e5, 1e9, 1e7)
 
     st.specify_phase(CP.CoolProp.iphase_gas)
     st.set_mole_fractions([1])
-    temps=np.arange(333.3,233.15,-10)
+    temps=np.arange(320,290,-10)
     fug={}
     chem={}
     plt.figure()
@@ -37,7 +37,7 @@ if __name__ == '__main__':
             chem[T].append(st.chemical_potential(0))
             a=[p,T,fug[T][-1],chem[T][-1]]
             out.writerow(a)
-        addPlot(press/1e6, fug[T],T,'-',minTemp=270)
+        addPlot(press/1e6, fug[T],T,'-',minTemp=180,maxTemp=350)
         plt.draw()
     outfile.close()
     plt.ylabel("Fugacity Coefficient")
@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     plt.figure()
     for T in chem:
-        addPlot(press/1e6,chem[T],T,'-')
+        addPlot(press/1e6,chem[T],T,'-',minTemp=180)
     plt.ylabel("Chemical Potential (J/mol)")
     plt.xlabel("Press (MPa)")
     plt.title(gasName)

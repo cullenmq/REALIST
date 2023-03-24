@@ -1,11 +1,11 @@
 import numpy as np
 from parseData import loadData,grabAdsorption,saveFile,convBartoMPa,loadSampleData
 from analyzeData import  absAds,calcQstInt,findAdsDensity,AdsLayerGrowth,calcUptake,adjustPressure
-from plotData import plotTotal,plotVolTotal,plotExcessUptake
+from plotData import plotTotal,plotVolTotal,plotExcessUptake,plotExcessUptakeParams
 from pathlib import Path
 import os
 import matplotlib.pyplot as plt
-from userConfig import *
+from config import *
 from isotherm import isotherm
 def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_FITS=False,CLOSE_FIGS=True,numThreads=48):
     #excess data, T,P,n
@@ -37,6 +37,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
     #fitting Data
     coefAll={}
     denAll={}
+    denFitAll={}
     homeDir=os.getcwd()
     for name in names:
         os.chdir(homeDir)
@@ -56,7 +57,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
         TAll[name], PAll[name], adsAll[name],isAbsolute=loadData(fileName=homeDir+'/rawData/'+name+gasName, isBar=isBar)
         if (OVERRIDE_ABSOLUTE):
             isAbsolute=True
-        #PAll[name], adsAll[name] =grabAdsorption(adsAll[name], PAll[name])
+        PAll[name], adsAll[name] =grabAdsorption(adsAll[name], PAll[name])
 
         #####Step 2: Run fit (or grab existing fit from file)########
         isoTest=isotherm(model,numThreads=numThreads)
@@ -77,13 +78,14 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
         #3b: calculate volumetric uptake
         tempPress=np.arange(0.0001, MAX_PLOT_PRESS, STEP_PRESS)
         #tempPress=np.arange(0.0001, 0.1, 0.001)
-        yFitAll[name],fitPress,adjFitPressAll[name],rssrAll[name],totalVolAdsAll[name], totalVolAdsFitAll[name],totalVol5bar[name]=calcUptake(
+        yFitAll[name],fitPress,denFitAll[name],adjFitPressAll[name],rssrAll[name],totalVolAdsAll[name], totalVolAdsFitAll[name],totalVol5bar[name]=calcUptake(
                                                                                               ads=adsAll[name],coef=coefAll[name],gasName=gasName,
                                                                                               sampBulkDens=bulkDens,tempPress=tempPress,
                                                                                               Xpore=Xpore[name],den=denAll[name],
                                                                                               useFugacity=useFugacity,isoModel=isoTest)
 
-        plotExcessUptake(adsAll[name],PAll[name],yFitAll[name],fitPress,name+model)
+        plotExcessUptakeParams(adsAll[name],PAll[name],coefAll[name],adjFitPressAll[name],denFitAll[name],isoTest, fitPress,name)
+        #plotExcessUptake(adsAll[name],PAll[name],yFitAll[name],fitPress,name+model)
         #3c: save RT, 0C data for DOE Targets
         totalVolAds=totalVolAdsAll[name]
         totalVolAdsFit=totalVolAdsFitAll[name]
@@ -124,7 +126,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
             info.update({a:[coefAll[name][a],str(isoTest.bounds[i])]})
         info.update({'adsRho (mmol/ml)':adsRhoAll[name]})
         info.update({'RSSR':rssrAll[name]})
-        data={'Raw Press (MPa)':newP,'Raw Adjusted Press (MPa)':adjPressAll[name],'Excess (mmol/g)':adsAll[name],'Total Vol (V/V)':totalVolAds,'fitPress (MPa)':fitPress,'Adjusted Fit Press (MPa)':adjFitPressAll[name],'Excess Fit (mmol/g)':yFitAll[name],'Total Vol Fit (V/V)':totalVolAdsFit, 'adjustedModelPress':calcPress,'actualPress':actualPress,
+        data={'Raw Press (MPa)':newP,'Raw Adjusted Press (MPa)':adjPressAll[name],'Excess (mmol/g)':adsAll[name],'Total Vol (V/V)':totalVolAds,'fitPress (MPa)':fitPress,'Adjusted Fit Press (MPa)':adjFitPressAll[name],'Gas Phase Density':denFitAll[name],'Excess Fit (mmol/g)':yFitAll[name],'Total Vol Fit (V/V)':totalVolAdsFit, 'adjustedModelPress':calcPress,'actualPress':actualPress,
               'Absolute (mmolg)':fa1,'Isosteric Heat (kJ/mol)':deltaH[name],'fill factor':thetaAll[name]}
 
         saveFile(info,data)
