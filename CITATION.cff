@@ -9,23 +9,18 @@ message: >-
   please cite pyIAST as well. 
 type: software
 authors:
-  - given-names: Cullen
-    name-particle: M.
+  - given-names: Cullen M.
     family-names: Quine
     email: cullenmq@ucla.edu
     affiliation: Caltech
     orcid: 'https://orcid.org/0000-0002-7301-0969'
-  - given-names: Nicholas
+  - given-names: Nicholas P.
     family-names: Stadie
-    name-particle: P.
-    email: nicholas.stadie@montana.edu
     affiliation: MSU Bozeman
-  - given-names: Channing
-    name-particle: C.
+  - given-names: Channing C.
     family-names: Ahn
     affiliation: Caltech
-  - given-names: Brent
-    name-particle: T.
+  - given-names: Brent T.
     family-names: Fultz
     affiliation: Caltech
 identifiers:
