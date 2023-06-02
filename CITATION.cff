@@ -14,12 +14,6 @@ authors:
     email: cullenmq@ucla.edu
     affiliation: Caltech
     orcid: 'https://orcid.org/0000-0002-7301-0969'
-  - given-names: Nicholas P.
-    family-names: Stadie
-    affiliation: MSU Bozeman
-  - given-names: Brent T.
-    family-names: Fultz
-    affiliation: Caltech
 identifiers:
   - type: doi
     value: 10.1016/j.cpc.2015.11.016
