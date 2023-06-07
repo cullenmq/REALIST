@@ -1,0 +1,37 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: REALIST
+message: >-
+  Please cite this software using these metadata (as well as
+  coolProp). If mixed gas adsorption predictions are used,
+  please cite pyIAST as well. 
+type: software
+authors:
+  - given-names: Cullen M.
+    family-names: Quine
+    email: cullenmq@ucla.edu
+    affiliation: Caltech
+    orcid: 'https://orcid.org/0000-0002-7301-0969'
+identifiers:
+  - type: doi
+    value: 10.1016/j.cpc.2015.11.016
+    description: pyIAST Reference
+  - type: doi
+    value: 10.1021/ie4033999
+    description: CoolProp Citation
+repository-code: 'https://github.com/cullenmq/REALIST'
+abstract: >-
+  The Realist (REal Adsorption Langmuir Isotherms for
+  Sorption Theory) package uses fugacity (coolprop) to fit
+  excess isotherms of any gas to isotherm models to extract
+  thermodynamic adsorption information with mixed-gas
+  adsorption predictions through pyIAST.
+keywords:
+  - Langmuir
+  - Adsorption
+  - IAST
+license: MIT
+version: '1.0'
+date-released: '2023-06-01'
