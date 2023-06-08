@@ -3,7 +3,7 @@ from parseData import saveFitData,loadFitData
 from EOS import calcDensity,calcFugacity,initFugacity
 from multiprocessing import Process,Queue
 import lmfit
-from scipy.optimize import differential_evolution
+from scipy.optimize import differential_evolution, least_squares
 
 coefNames={} #list of names for coefficients for specific model
 bounds={} #list of bounds for each coef (must equal coefNames)
@@ -49,7 +49,7 @@ addModel('sL',slNames,slBounds,theta_sL,dPdT_sL)
 ## DUAL Langmuir
 dlNames=["nmax","a","vmax","A1","E1","A2","E2"]
 dlEqn=r'$\theta=(1-a)*\left(\frac{\frac{A_1}{T}e^{\frac{E_1}{RT}}P}{1+\frac{A_1}{T}e^{\frac{E_1}{RT}}P}\right)+a\left(\frac{\frac{A_2}{T}e^{\frac{E_2}{RT}}P}{1+\frac{A_2}{T}e^{\frac{E_2}{RT}}P}\right)$'
-dlBounds=[(0,0.2),(0.29,1),(1e-7, 1e-5), (0.0,10),(0.0,30),(0.0,10),(0.0, 30)]
+dlBounds=[(0,0.6),(0.0,0.5),(1e-7, 5e-6), (0.0,1),(0.0,30),(0.0,1),(0.0, 30)]
 def theta_dL(p,t,coef):
         a = coef["a"]
         A1 = coef["A1"]
@@ -384,6 +384,27 @@ class isotherm():
             return 1000*(nmax-vmax*den)*self.theta(p,t,a)
             #stagnant adsorbed phase volume assumption
             #return 1000*nmax*self.theta(p,t,a)-vmax*den
+    """ Residual calculation for LMFIT"""
+    def residual(self,params, p,den, ads):
+        resid =np.array([])
+        #for lmfit
+        params=dict((name,params[name].value) for name in params)
+
+
+
+        #convert array into dict with coefficient names
+        #params=dict(zip(self.names,params))
+        # make residual per data set
+        for temp in ads:
+            modelData = self.genExcess(p[temp],float(temp),params,den[temp],self.isAbsolute)
+            curAds=np.array(ads[temp])
+            curResid= modelData -curAds
+            if resid.size==0:
+                resid=curResid
+            else:
+                resid=np.append(resid,curResid)
+        # now flatten this to a 1D array, as minimize() needs
+        return resid#resid.flatten()
     def objective(self,params, p, ads,den):
             """Calculate total residual for fits of General Langmuir Isotherms to several data sets."""
             resid =np.array([])
@@ -400,6 +421,23 @@ class isotherm():
                     resid=np.append(resid,curResid)
             # now flatten this to a 1D array, as minimize() needs
             return np.sum(resid)#resid.flatten()
+    """ Function to optimize the isotherm fit (after initial guess) or after differential evolution to get stdDev, refine fit"""
+    def refineFit(self,initParams,p,ads,den):
+        params= lmfit.Parameters()
+        i=0
+        newParams=[]
+        for name in initParams:
+            if name != 'rssr':
+                newParams.append(initParams[name])
+                params.add(name,initParams[name],min=self.bounds[i][0],max=self.bounds[i][1])
+                i+=1
+
+        #powell,tnc not terrible
+        refParams=lmfit.minimize(self.residual,params,args=(p,den,ads),method="powell")
+        print("Done Refining Fit using least squares:")
+        lmfit.report_fit(refParams)
+        RSSR=np.sqrt(np.sum(np.square(refParams.residual)))/refParams.ndata
+        print("New RSSR/pt Value: {}".format(RSSR))
 
     def runFit(self,p,ads,gasName,useFugacity=True, isRunFit=True,name='test'):
 
@@ -442,6 +480,9 @@ class isotherm():
 
             coef['rssr']=rssr
             saveFitData(name+self.name,coef)
+        #test new LMFIT routine
+        self.refineFit(coef,calcPress,ads,den)
+
         #we need to calculate excess uptake if given absolute uptake
         if self.isAbsolute:
             for temp in ads:
