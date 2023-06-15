@@ -5,7 +5,7 @@ from plotData import plotTotal,plotVolTotal,plotExcessUptake,plotExcessUptakePar
 from pathlib import Path
 import os
 import matplotlib.pyplot as plt
-from config import *
+from userConfig import *
 from isotherm import isotherm
 def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_FITS=False,CLOSE_FIGS=True,numThreads=48):
     #excess data, T,P,n
