@@ -11,7 +11,7 @@ OVERRIDE_ABSOLUTE=False
 
 #######################PLOTTING PARAMETERS#########################################################################
 #parameter to force recalculating of fits, even if fit was already done
-RECALC_FITS=False
+RECALC_FITS=True
 #Closes figures automatically, otherwise you have to manually close them to continue
 CLOSE_FIGS=True
 #max pressure to plot on X axis
@@ -32,7 +32,7 @@ names.append("EH046")
 
 #Names of Langmuir Models that you want to run
 models = []
-models.append("sL")
+#models.append("sL")
 models.append("dL")
 #models.append("tL")
 #models.append("coAds")
@@ -41,5 +41,5 @@ models.append("dL")
 #models.append("toth")
 #models.append("sips")
 
-#Number of threads that you want to run, this should be a multiple of the number of logic threads your computer has for max efficiency
-numThreads=12
+#Number of populationSize to run
+numThreads=30

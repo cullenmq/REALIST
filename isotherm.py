@@ -1,10 +1,12 @@
+import time
+
 import numpy as np
 from parseData import saveFitData,loadFitData
 from EOS import calcDensity,calcFugacity,initFugacity
 from multiprocessing import Process,Queue
 import lmfit
 from scipy.optimize import differential_evolution, least_squares
-
+import os
 coefNames={} #list of names for coefficients for specific model
 bounds={} #list of bounds for each coef (must equal coefNames)
 thetas={} #theta function to call for specific model
@@ -347,16 +349,17 @@ addModel('sips',sipsNames,sipsBounds,theta_sips,dPdT_sips)
 
 
 class isotherm():
-    def __init__(self,name,numThreads=48,isAbsolute=False):
+    def __init__(self,name,numThreads=15,isAbsolute=False):
         self.name=name
-        self.numThreads=numThreads
+        self.popSize=numThreads
         self.bounds=bounds[name]
         self.names=coefNames[name]
         self.isAbsolute=isAbsolute
-    def diff_evol(self,bounds,p,ads,den,i,queue):
+    def diff_evol(self,bounds,p,ads,den,i,queue,popSize):
             strat='randtobest1exp'#'randtobest1bin'
-            queue.put(differential_evolution(func=self.objective,bounds=bounds,args=(p,ads,den),seed=i,disp=False,tol=.006,maxiter=10000,
+            queue.put(differential_evolution(func=self.objective,popsize=popSize,bounds=bounds,args=(p,ads,den),seed=i,disp=False,tol=.006,maxiter=10000,
                                                 strategy=strat,init='random'))
+
     def calcExcess(self,calcPress,ads,den,t,a):
         p=np.array(calcPress)
         den=np.array(den)
@@ -505,16 +508,18 @@ class isotherm():
 
     def diffEV(self,p,ads,den):
         minimized_function=1e9
-        numRuns=self.numThreads
+        numRuns=os.cpu_count()
         numPoints=0
         for t in p:
             numPoints+= len(p[t])
         #lets do this in parallel
+        startTime=time.time()
         jobs=[]
         queue = Queue()
         bounds=self.bounds
+        popSize=self.popSize
         for i in range(numRuns):
-            proc=(Process(target=self.diff_evol,args=(bounds,p,ads,den,i,queue)))
+            proc=(Process(target=self.diff_evol,args=(bounds,p,ads,den,i,queue,popSize)))
             jobs.append(proc)
             proc.start()
         for proc in jobs:
@@ -526,7 +531,13 @@ class isotherm():
                 minimized_function = temp.fun
                 fin = temp.x
                 ssr=temp.fun
-            #resultt = result
+        #     #resultt = result
+        #strat='randtobest1exp'#'randtobest1bin'
+        #temp=differential_evolution(func=self.objective,bounds=self.bounds,args=(p,ads,den),seed=None,workers=-1,popsize=30*numRuns,disp=False,tol=.006,maxiter=10000,
+                                    #strategy=strat,init='random')
+        fin = temp.x
+        ssr=temp.fun
+        print("--- %s seconds for execution ---" % (time.time() - startTime))
         print("coefs= {}".format(fin))
         rssr=np.sqrt(ssr)
         print("RSSR :{}".format(rssr))
