@@ -60,7 +60,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,useFugacity=True,RECALC_
         PAll[name], adsAll[name] =grabAdsorption(adsAll[name], PAll[name])
 
         #####Step 2: Run fit (or grab existing fit from file)########
-        isoTest=isotherm(model,numThreads=numThreads)
+        isoTest=isotherm(model,numThreads=numThreads,isAbsolute=isAbsolute)
         coefAll[name],denAll[name],adjPressAll[name],adsAll[name]=isoTest.runFit(PAll[name], adsAll[name],gasName=gasName,useFugacity= useFugacity,isRunFit=RECALC_FITS, name=name)
 
         ######Step 3: Run analysis on fitted data

@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 from parseData import saveFitData,loadFitData
 from EOS import calcDensity,calcFugacity,initFugacity
@@ -7,6 +5,8 @@ from multiprocessing import Process,Queue
 import lmfit
 from scipy.optimize import differential_evolution, least_squares
 import os
+import time
+
 coefNames={} #list of names for coefficients for specific model
 bounds={} #list of bounds for each coef (must equal coefNames)
 thetas={} #theta function to call for specific model
@@ -345,7 +345,42 @@ def dPdT_sips(P,T,coef):
     return -P*(E1+r*T)/(r*T**2)
 addModel('sips',sipsNames,sipsBounds,theta_sips,dPdT_sips)
 
+#universal adsorption model
+univNames=["nmax","vmax","a","A1","E1","m1","E2","m2"]
 
+univBounds=[(0.0,0.1),(1e-10, 1e-5), (0,1), (1e-7,1),(0.0,30),(1e-3,10),(0.0,30),(1e-3,10)]
+def theta_univ(p,t,coef):
+        r = 8.314462 / 1000 #kJ/molK
+        A1 = coef["A1"]
+        E1 = coef["E1"]
+        E2 = coef["E2"]
+        a=coef["a"]
+        m1=coef["m1"]
+        m2=coef["m2"]
+        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
+        pow1=r*t/m1
+        pow2=r*t/m2
+        #assume both sites are equal
+        K2=calcK(A1,E2,t,1)
+        return a*((K1*p)**pow1/(1+(K1*p)**pow1))+(1-a)*((K2*p)**pow2/(1+(K2*p)**pow2))
+def dPdT_univ(P,T,coef):
+    r = 8.314462 / 1000
+    A1 = coef["A1"]
+    E1 = coef["E1"]
+    #x=coef["x"]
+    K1=calcK(A1,E1,T,1)
+    #plt.figure()
+    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
+    #X=dTheta/dP
+    X= (K1/((1+K1*P)**2))
+    #Y=dTheta/dK
+    Y1=(P/((1+K1*P)**2))
+    #Z=dk/dT
+    #note:square root has an extra 0.5 in front
+    mult=1
+    Z1=-K1*((mult*r*T+E1)/(r*T**2))
+    return (Y1*Z1)/X
+addModel('univ',univNames,univBounds,theta_univ,dPdT_univ)
 
 
 class isotherm():

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-from userConfig import *
+from config import *
 from matplotlib.widgets import Slider,Button,CheckButtons
 #from analyzeData import calcDensity,calcVolUptake
 matplotlib.use("TkAgg")
