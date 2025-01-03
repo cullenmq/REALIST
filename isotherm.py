@@ -1,18 +1,20 @@
 import numpy as np
 from parseData import saveFitData,loadFitData
-from EOS import calcDensity,calcFugacity,initFugacity
+from EOS import calcDensity,calcFugacity,initFugacity,calcZ
 from multiprocessing import Process,Queue
 import lmfit
 from scipy.optimize import differential_evolution, least_squares
 import os
 import time
+from userConfig import *
 
 coefNames={} #list of names for coefficients for specific model
 bounds={} #list of bounds for each coef (must equal coefNames)
 thetas={} #theta function to call for specific model
 dPdTs={} #dp/dt function to call for specific model (used for enthalpy)
 eqns={}# text format for theta equation
-x=0.5
+
+x=0.5 #temperature dependence for the prefactor denominator
 
 
 ### Calculating K, denominator either no T, T, or square root T dependence!
@@ -26,6 +28,23 @@ def addModel(name,coefs,bound,theta,dPdT,eqn=None):
     thetas[name]=theta
     dPdTs[name]=dPdT
     eqns[name]=eqn
+ # Modified DA Model
+MDANames=["nmax","vmax","a","B","Pn"]
+
+MDABounds=[(0.0,0.1),(1e-10, 1.64e-6), (0.01,1e4),(0.01,200),(1,2e3)]
+def theta_MDA(p,t,coef):
+    r = 8.314462 
+    a= coef["a"]
+    B=coef["B"]
+    Pn=coef["Pn"]
+    num=-(r*t/(a+B*t))**2*(np.log(Pn/p))**2
+    return (np.exp(num))
+def dPdT_MDA(P,T,coef):
+    r = 8.314462 / 1000
+    return 1
+addModel('MDA',MDANames,MDABounds,theta_MDA,dPdT_MDA)
+
+
  # Single Langmuir
 slNames=["nmax","vmax","A1","E1","x"]
 
@@ -45,13 +64,14 @@ def dPdT_sL(P,T,coef):
     x=coef["x"]
     #note:square root has an extra 0.5 in front
     mult=x
-    Z1=-P/(r*T**2)*(-r*T*mult+E1)
+    Z1=-P/(r*T**2)*(r*T*mult+E1)
     return Z1
 addModel('sL',slNames,slBounds,theta_sL,dPdT_sL)
+
 ## DUAL Langmuir
 dlNames=["nmax","a","vmax","A1","E1","A2","E2"]
 dlEqn=r'$\theta=(1-a)*\left(\frac{\frac{A_1}{T}e^{\frac{E_1}{RT}}P}{1+\frac{A_1}{T}e^{\frac{E_1}{RT}}P}\right)+a\left(\frac{\frac{A_2}{T}e^{\frac{E_2}{RT}}P}{1+\frac{A_2}{T}e^{\frac{E_2}{RT}}P}\right)$'
-dlBounds=[(0,0.6),(0.0,0.5),(1e-7, 5e-6), (0.0,1),(0.0,30),(0.0,1),(0.0, 30)]
+dlBounds=[(0,0.065),(0.0,1),(1e-7, 5e-6), (0.0,5e-2),(0.0,30),(0.0,5e-2),(0.0, 15)]
 def theta_dL(p,t,coef):
         a = coef["a"]
         A1 = coef["A1"]
@@ -381,7 +401,26 @@ def dPdT_univ(P,T,coef):
     Z1=-K1*((mult*r*T+E1)/(r*T**2))
     return (Y1*Z1)/X
 addModel('univ',univNames,univBounds,theta_univ,dPdT_univ)
-
+### Hill Models for Nick Stadie
+##Hill1
+HillNames=["nmax","a","vmax","u","uaa","m"]
+HillBounds= [(0.0,0.1),(0,1e-3),(1e-10, 1e-3), (0,100),(0,100),(1,10)]
+def theta_Hill(p,t,a):
+    r = 8.314462 / 1000
+    u = a["u"]
+    uaa = a["uaa"]
+    m = round(a["m"])
+    a1=a["a"]
+    K1=(a1/t**x*np.exp(u/r/t))**m
+    KI=np.exp(uaa / r / t)
+    return K1*KI*(p**m) / (1 + K1*KI*(p**m)) / m
+def dPdT_Hill(P,T,coef):
+    r = 8.314462 / 1000
+    u = coef["u"]
+    uaa = coef["uaa"]
+    m = round(coef["m"])
+    return  -P/(r*T**2)*(u + uaa/m +x*r*T)
+addModel('Hill',HillNames,HillBounds,theta_Hill,dPdT_Hill)
 
 class isotherm():
     def __init__(self,name,numThreads=15,isAbsolute=False):
@@ -419,9 +458,9 @@ class isotherm():
                 return 1000*(nmax)*self.theta(p,t,a)
             #dynamic adsorbed phase volume assumption
 
-            return 1000*(nmax-vmax*den)*self.theta(p,t,a)
+            #return 1000*(nmax-vmax*den)*self.theta(p,t,a)
             #stagnant adsorbed phase volume assumption
-            #return 1000*nmax*self.theta(p,t,a)-vmax*den
+            return 1000*nmax*self.theta(p,t,a)-1000*vmax*den
     """ Residual calculation for LMFIT"""
     def residual(self,params, p,den, ads):
         resid =np.array([])
@@ -453,6 +492,8 @@ class isotherm():
                 modelData = self.genExcess(p[temp],float(temp),params,den[temp],self.isAbsolute)
                 curAds=np.array(ads[temp])
                 curResid=np.square(curAds - modelData)
+                #TODO: test out if we normalize to each isotherm
+                curResid/=len(p[temp])
                 if resid.size==0:
                     resid=curResid
                 else:
@@ -477,11 +518,11 @@ class isotherm():
         RSSR=np.sqrt(np.sum(np.square(refParams.residual)))/refParams.ndata
         print("New RSSR/pt Value: {}".format(RSSR))
 
-    def runFit(self,p,ads,gasName,useFugacity=True, isRunFit=True,name='test'):
+    def runFit(self,p,ads,gasName, isRunFit=True,name='test'):
 
         print("calculating densities")
         den={}
-        if(useFugacity):
+        if(useFugacity or useCompress):
             adjPress={}
             st=initFugacity(gasName)
         for temp in p:
@@ -492,13 +533,18 @@ class isotherm():
                 tempDen.append(calcDensity(press, T, gasName))
                 if(useFugacity):
                     tempPress.append(press*calcFugacity(st,press,T))
+                elif(useCompress):
+                    tempPress.append(press*calcZ(press,T,gasName))
             den[temp]=tempDen
-            if useFugacity:
+            if useFugacity or useCompress:
                 adjPress[temp]=tempPress
         coef=None
         if useFugacity:
             calcPress=adjPress
             print("Using fugacity")
+        elif useCompress:
+            calcPress=adjPress
+            print("Using Compressibility")
         else:
             print("Using pressure")
             calcPress=p
@@ -543,7 +589,7 @@ class isotherm():
 
     def diffEV(self,p,ads,den):
         minimized_function=1e9
-        numRuns=os.cpu_count()
+        numRuns=os.cpu_count()*numThreads
         numPoints=0
         for t in p:
             numPoints+= len(p[t])
@@ -561,7 +607,7 @@ class isotherm():
             proc.join()
         for i in range(numRuns):
             temp=queue.get()
-            print("{}= {}".format(i,temp.fun))
+            #print("{}= {}".format(i,temp.fun))
             if minimized_function > temp.fun:
                 minimized_function = temp.fun
                 fin = temp.x

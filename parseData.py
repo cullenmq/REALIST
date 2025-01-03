@@ -2,7 +2,7 @@ import csv
 import xlsxwriter
 import json as json
 import os.path
-
+from EOS import molMass
 def loadFitData(name):
     file=name+'_fit.json'
     if not os.path.isfile(file):
@@ -71,6 +71,26 @@ def loadData(fileName='sampleData.csv',isBar=True):
                         ads[str(temp)].append(float(row[3*i+1]))
             line_count+=1
     return T,P,ads,isAbsolute
+def wtToMols(ads,gasName):
+    #molar mass in kg/mol, or g/mmol
+    molM=molMass(gasName)/1000
+    mmolg={}
+    for temp in ads:
+        mmolg[temp]=[]
+        curAds=ads[temp]
+        for a in curAds:
+            massFrac=(a/100)/(1-(a/100))
+            mmolg[temp].append(massFrac/molM)         
+    return mmolg
+def molToWt(ads,gasName):
+    molM=molMass(gasName)/1000
+    mmolg={}
+    for temp in ads:
+        mmolg[temp]=[]
+        for a in ads[temp]:
+            massFrac=a*molM 
+            mmolg[temp].append(massFrac/(1+massFrac)*100)
+    return mmolg
 def grabAdsorption(ads,press):
     newAds= {}
     newPress= {}
@@ -113,6 +133,7 @@ def saveFile(fit,data):
         curData=data[names]
         for temp in data[names]:
             if temp not in worksheet:
+                print(temp)
                 worksheet[temp]=workbook.add_worksheet(temp)
             worksheet[temp].write(0,i,names)
             worksheet[temp].write_column(1,i,curData[temp])

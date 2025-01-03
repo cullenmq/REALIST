@@ -21,6 +21,28 @@ def calcFugacity(st,P,T):
     P=P*1e6
     st.update(CP.PT_INPUTS, P, T)
     return st.fugacity_coefficient(0)
+    
+#output in Z, P in MPa, T in K
+def calcZ(P,T,gas):
+    P=P*1e6
+    CP.CoolProp.set_config_bool(CP.CoolProp.OVERWRITE_BINARY_INTERACTION, True)
+    if (T<=40):
+        pP=0.887
+    elif(T<=50):
+        pP=0.77    
+    elif(T<=77):   
+        pP=0.5
+    elif(T<=90):
+        pP=.4288
+    elif(T<=100):
+        pP=.386
+    elif(T<=120):
+        pP=.3296
+    else:
+        pP=.25
+        
+    return pP*PropsSI('Z','P',P,'T',T,"parahydrogen")+(1-pP)*PropsSI('Z','P',P,'T',T,"orthohydrogen")
+    
 #output in kJ/mol
 def calcU(st,P,T):
     P=P*1e6
@@ -31,3 +53,5 @@ def initFugacity(gasName):
     st.specify_phase(CP.CoolProp.iphase_gas)
     st.set_mole_fractions([1])
     return st
+def molMass(gasName):
+    return PropsSI("M",gasName)*1000

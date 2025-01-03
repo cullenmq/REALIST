@@ -1,7 +1,9 @@
 import numpy as np
-from EOS import initFugacity,calcFugacity
+from EOS import initFugacity,calcFugacity,molMass
 from plotData import plotIsoHeat,plotAbsUptake,plotAdsLayer
-from EOS import calcDensity,calcSatPress,critT
+from EOS import calcDensity,calcSatPress,critT, calcZ
+from parseData import molToWt
+from userConfig import *
 def sqrt(x):
     return np.sqrt(x)
 def findAdsDensity(coef):
@@ -37,15 +39,22 @@ def absAds(Press,actualPress,coef,isoModel,name="test",newFigure=False):
     return fa1
 
 #adjustPressure for fugacity
-def adjustPressure(expP,normalPress, useFugacity,gasName):
+def adjustPressure(expP,normalPress, gasName):
     actualPress={}
     calcPress={}
     for temp in expP:
-            if(float(temp)<critT(gasName)):
+            
+            if(float(temp)<critT(gasName) or CUTOFF_THETA):
                 actualPress[temp]=[]
-                gasSatPress= calcSatPress(float(temp),gasName)
+                if(CUTOFF_THETA):
+                    maxPress=max(expP[temp])
+                else:
+                    gasSatPress= calcSatPress(float(temp),gasName)
                 for press in normalPress:
-                    if(press<gasSatPress):
+                    if(CUTOFF_THETA):
+                        if( press<=maxPress):
+                            actualPress[temp].append(press)
+                    elif(press<gasSatPress):            
                         actualPress[temp].append(press)
             else:
                 actualPress[temp]=normalPress
@@ -54,15 +63,52 @@ def adjustPressure(expP,normalPress, useFugacity,gasName):
             if(useFugacity):
                 for press in actualPress[temp]:
                     calcPress[temp].append(press*calcFugacity(st,press,float(temp)))
+            elif(useCompress):
+                for press in actualPress[temp]:
+                    calcPress[temp].append(press*calcZ(press,float(temp),gasName))
             else:
                 calcPress[temp]=actualPress[temp]
     return actualPress,calcPress
+
+
+#find pressure at a certain uptake
+def findPress(press,uptake,value):
+    array = np.asarray(uptake)
+    idx = (np.abs(array - value)).argmin()
+    return press[idx]
+##calculate isoexcess heat of adsorption, fitExcess in wt%, press in bar, uptake in mmol/g
+def calcIsoExcess(fitExcess,press,uptake,T2=87,T1=77):
+    #first find name of relevant isotherm
+    T2Name=''
+    T1Name=''
+    isoHeat=[]
+    r = 8.314462 /1000
+    #find name that is within 2K of desired temp
+    for names in press:
+        print(names)
+        if(abs(float(names)-T1)<2):
+            T1Name=names
+            t1n=float(T1Name)
+        elif(abs(float(names)-T2)<2):
+            T2Name=names
+            t2n=float(T2Name)
+    wtPer=molToWt(uptake,"hydrogen")
+    #find pressure index of max excess uptake
+    wt1Idx=np.argmax(wtPer[T1Name])
+    wt2Idx=np.argmax(wtPer[T2Name])
+    for ex in fitExcess:
+        #we need to cut off the press, excess data at max excess so the function is well defined
+        P1=findPress(press[T1Name][:wt1Idx], wtPer[T1Name][:wt1Idx], ex)
+        P2=findPress(press[T2Name][:wt2Idx], wtPer[T2Name][:wt2Idx], ex)
+        #print("T1: {}, T2: {}, P1: {}, P2: {}".format(t1n,t2n,P1,P2))
+        isoHeat.append(r*np.log(P1/P2)*(t2n*t1n/(t1n-t2n)))
+    return isoHeat
 ##calculate volumetric uptake (total and excess)
-def calcUptake(ads,coef,gasName,sampBulkDens,tempPress,Xpore,den,useFugacity,isoModel):
+def calcUptake(ads,coef,gasName,sampBulkDens,tempPress,Xpore,den,isoModel):
     rssr=coef['rssr']
     y_fit={}
     fitDens={}
-    actualPress,fitPress=adjustPressure(ads,tempPress,useFugacity=useFugacity,gasName=gasName)
+    actualPress,fitPress=adjustPressure(ads,tempPress,gasName=gasName)
     for temp in ads:
         tempFitDen=[]
         for i,press in enumerate(actualPress[temp]):
@@ -87,7 +133,7 @@ def calcUptake(ads,coef,gasName,sampBulkDens,tempPress,Xpore,den,useFugacity,iso
         calcVolUptakeTemp=calcTotalVolUptake[temp]
         totVol5bar[temp]= calcVolUptakeTemp[press5bar]
 
-    return y_fit,actualPress,fitDens,fitPress,rssr,measTotalVolUptake, calcTotalVolUptake,totVol5bar
+    return y_fit,actualPress,fitDens,fitPress,rssr,measExcessVolUptake,measTotalVolUptake, calcTotalVolUptake,totVol5bar
 
 # calculate volumetric excess and volumetric total:
 def calcVolUptake(exUptake,gasRho,bulkDens,Xpore,gasName="Methane"):
@@ -95,12 +141,19 @@ def calcVolUptake(exUptake,gasRho,bulkDens,Xpore,gasName="Methane"):
     gasRho=np.asarray(gasRho)
     #we need to convert mol/m^3-> mmol/ml
     gasRho=gasRho/1000
-    gasSTP=1/calcDensity(0.101325,273.15,gasName)*1000#22.413969545014 #methane at STP, mL/mmol
+    gasSTP=1/calcDensity(0.101325,273.15,gasName)/1000 #22.413969545014 #L/mol
 
     #excessUptake in mmol/g,excessVolUptake in v/v
-    excessVolUptake= exUptake*bulkDens*gasSTP
+    #excessVolUptake= exUptake*bulkDens*gasSTP
     #total density is in v/v
-    totalVolUptake=excessVolUptake+(gasRho*Xpore)*gasSTP
+    #totalVolUptake=excessVolUptake+(gasRho*Xpore)*gasSTP
+    
+    #excessUptake in mmol/g,excessVolUptake in g/L
+    excessVolUptake= exUptake*bulkDens*molMass(gasName)#*1000
+    print("Density")
+    #total density is in g/L
+    totalVolUptake=excessVolUptake+(gasRho*Xpore)*molMass(gasName)#*1000
+    
     return excessVolUptake, totalVolUptake
 
 def calcQstInt(fitPress,actualPress,coef,adsRho,fa1,name,closeFig,isoModel,gasName):
