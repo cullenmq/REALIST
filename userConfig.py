@@ -1,8 +1,8 @@
 
 ############################# Choose Gas Type ##########################################
-#gasName="Methane"
+gasName="Methane"
 #gasName="CarbonDioxide"
-gasName="Hydrogen"
+#gasName="Hydrogen"
 #gasName="Nitrogen"
 #gasName="Krypton"
 #flag for non-ideal gas corrections
@@ -14,13 +14,13 @@ useIdealGas=False
 #parameter to force recalculating of fits, even if fit was already done
 RECALC_FITS=False
 #adsorbed volume definition, only uncomment one of the two
-ADS_VOL="Static"
-#ADS_VOL="Dynamic"
+#ADS_VOL="Static"
+ADS_VOL="Dynamic"
 
 #parameter to force or fit prefactor dependences. True means that code will fit prefactor 1/T^x
 FIT_PREFACT=False
 #Denominator Temperature Dependence prefactor for Langmuir (FIT_PREFACT must be false) should be 0-3
-preFact=0
+preFact=0.5
 #Number of differential evolution instances to run (multiplies by PC core count)
 numThreads=8
 
@@ -28,19 +28,20 @@ numThreads=8
 #Assumes that all data is absolute uptake, default is false (if excess file exists will assume excess uptake)
 OVERRIDE_ABSOLUTE=False
 #Convert data from weight percent to mmol/g, for fitting (set to false if using data in mmol/g)
-CONVERT_WT_MOL=True
+CONVERT_WT_MOL=False
 
 #######################PLOTTING PARAMETERS#########################################################################
 
 #Closes figures automatically, otherwise you have to manually close them to continue
-CLOSE_FIGS=True
+CLOSE_FIGS=False
 # parameter to cut off absolute isosteric enthalpy calcuation at thetamax
 CUTOFF_THETA=True
 #parameter to fit isoexcess enthalpy with smoothing spline
+#TODO: fix or remove spline, does not work currently
 USE_SPLINE=False
 #max pressure to plot on X axis
 MAX_PLOT_PRESS=10
-STEP_PRESS=0.001
+STEP_PRESS=0.0001
 DELTAH_MAX=10
 DELTAH_MIN=0
 ABSOLUTE_MAX=35
