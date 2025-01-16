@@ -7,15 +7,12 @@ from scipy.optimize import differential_evolution, least_squares
 import os
 import time
 from userConfig import *
-
+from plotData import plotRawExcessUptake
 coefNames={} #list of names for coefficients for specific model
 bounds={} #list of bounds for each coef (must equal coefNames)
 thetas={} #theta function to call for specific model
 dPdTs={} #dp/dt function to call for specific model (used for enthalpy)
 eqns={}# text format for theta equation
-
-x=0.5 #temperature dependence for the prefactor denominator
-
 
 ### Calculating K, denominator either no T, T, or square root T dependence!
 def calcK(A,E,T,x):
@@ -48,11 +45,15 @@ addModel('MDA',MDANames,MDABounds,theta_MDA,dPdT_MDA)
  # Single Langmuir
 slNames=["nmax","vmax","A1","E1","x"]
 
-slBounds=[(0.0,0.1),(1e-10, 1.64e-6), (0.0,10),(0.0,30),(0,2)]
+slBounds=[(0.0,0.1),(1e-10, 1.64e-6), (0.0,10),(0.0,30),(0.0000,0.0001)]
 def theta_sL(p,t,coef):
         A1 = coef["A1"]
         E1 = coef["E1"]
-        x=coef["x"]
+        if(FIT_PREFACT):
+            x=coef["x"]
+        else:
+            x=preFact
+
         K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
@@ -61,24 +62,28 @@ def dPdT_sL(P,T,coef):
     r = 8.314462 / 1000
     A1 = coef["A1"]
     E1 = coef["E1"]
-    x=coef["x"]
-    #note:square root has an extra 0.5 in front
-    mult=x
-    Z1=-P/(r*T**2)*(r*T*mult+E1)
+    if (FIT_PREFACT):
+        x = coef["x"]
+    else:
+        x = preFact
+    Z1=-P/(r*T**2)*(r*T*x+E1)
     return Z1
 addModel('sL',slNames,slBounds,theta_sL,dPdT_sL)
 
 ## DUAL Langmuir
-dlNames=["nmax","a","vmax","A1","E1","A2","E2"]
+dlNames=["nmax","a","vmax","A1","E1","A2","E2","x"]
 dlEqn=r'$\theta=(1-a)*\left(\frac{\frac{A_1}{T}e^{\frac{E_1}{RT}}P}{1+\frac{A_1}{T}e^{\frac{E_1}{RT}}P}\right)+a\left(\frac{\frac{A_2}{T}e^{\frac{E_2}{RT}}P}{1+\frac{A_2}{T}e^{\frac{E_2}{RT}}P}\right)$'
-dlBounds=[(0,0.065),(0.0,1),(1e-7, 5e-6), (0.0,5e-2),(0.0,30),(0.0,5e-2),(0.0, 15)]
+dlBounds=[(0,0.065),(0.0,1),(1e-7, 5e-6), (0.0,5e-2),(0.0,30),(0.0,5e-2),(0.0, 15),(0,3)]
 def theta_dL(p,t,coef):
         a = coef["a"]
         A1 = coef["A1"]
         E1 = coef["E1"]
         A2 = coef["A2"]
         E2 = coef["E2"]
-        #x=coef["x"]
+        if (FIT_PREFACT):
+            x = coef["x"]
+        else:
+            x = preFact
         K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
@@ -91,7 +96,10 @@ def dPdT_dL(P,T,coef):
     E1 = coef["E1"]
     A2 = coef["A2"]
     E2 = coef["E2"]
-    #x=coef["x"]
+    if (FIT_PREFACT):
+        x = coef["x"]
+    else:
+        x = preFact
     K1=calcK(A1,E1,T,x)
     K2=calcK(A2,E2,T,x)
     #plt.figure()
@@ -102,23 +110,18 @@ def dPdT_dL(P,T,coef):
     Y1=(1-a)*(P/((1+K1*P)**2))
     Y2=a*(P/((1+(K2)*P)**2))
     #Z=dk/dT
-    #note:square root has an extra 0.5 in front
-    #if(isSqRoot):
-     #   mult=0.5
-    #else:
-     #   mult=1
-    mult=x
-    Z1=-K1*((mult*r*T+E1)/(r*T**2))
-    Z2=-K2*((mult*r*T+E2)/(r*T**2))
+
+    Z1=-K1*((x*r*T+E1)/(r*T**2))
+    Z2=-K2*((x*r*T+E2)/(r*T**2))
     return (Y1*Z1+Y2*Z2)/X
-    #return (1-a)*(-P*E1/(r*T**2)-(mult*P/T))+a*(-P*E2/(r*T**2)-(mult*P/T))
+    #return (1-a)*(-P*E1/(r*T**2)-(x*P/T))+a*(-P*E2/(r*T**2)-(x*P/T))
 
 addModel('dL',dlNames,dlBounds,theta_dL,dPdT_dL,dlEqn)
 
 ## Triple Langmuir
-tlNames=["nmax","a2","a3","vmax","A1","E1","A2","E2","A3","E3"]
+tlNames=["nmax","a2","a3","vmax","A1","E1","A2","E2","A3","E3","x"]
 
-tlBounds=[(0.0,0.1),(0,0.5),(0,0.5),(1e-10, 1e-5),(0.0,10),(0.0,30),(0,10),(0.0, 30),(0,10),(0.0, 30)]
+tlBounds=[(0.0,0.1),(0,0.5),(0,0.5),(1e-10, 1e-5),(0.0,10),(0.0,30),(0,10),(0.0, 30),(0,10),(0.0, 30),(0,3)]
 def theta_tL(p,t,coef):
         a2 = coef["a2"]
         a3 = coef["a3"]
@@ -128,12 +131,15 @@ def theta_tL(p,t,coef):
         E2 = coef["E2"]
         A3 = coef["A3"]
         E3 = coef["E3"]
-        #x=coef["x"]
-        K1=calcK(A1,E1,t,0)#K1=a4*np.exp(a5/r/t)/denom
+        if (FIT_PREFACT):
+            x = coef["x"]
+        else:
+            x = preFact
+        K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
         #assume both sites are equal
         #K2=K1
-        K2=calcK(A2,E2,t,0)#a6*np.exp(a7/r/t)/denom
-        K3=calcK(A3,E3,t,0)
+        K2=calcK(A2,E2,t,x)#a6*np.exp(a7/r/t)/denom
+        K3=calcK(A3,E3,t,x)
         return ((1-a2-a3)*(K1*p/(1+K1*p))+a2*(K2*p/(1+K2*p))+a3*(K3*p/(1+K3*p)))
 def dPdT_tL(P,T,coef):
     r = 8.314462 / 1000
@@ -145,10 +151,13 @@ def dPdT_tL(P,T,coef):
     E2 = coef["E2"]
     A3 = coef["A3"]
     E3 = coef["E3"]
-    #x=coef["x"]
-    K1=calcK(A1,E1,T,0)
-    K2=calcK(A2,E2,T,0)
-    K3=calcK(A3,E3,T,0)
+    if (FIT_PREFACT):
+        x = coef["x"]
+    else:
+        x = preFact
+    K1=calcK(A1,E1,T,x)
+    K2=calcK(A2,E2,T,x)
+    K3=calcK(A3,E3,T,x)
     #plt.figure()
     #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
     #X=dTheta/dP
@@ -158,70 +167,9 @@ def dPdT_tL(P,T,coef):
     Y2=a2*(P/((1+(K2)*P)**2))
     Y3=a3*(P/((1+(K3)*P)**2))
     #Z=dk/dT
-    #note:square root has an extra 0.5 in front
-    #if(isSqRoot):
-     #   mult=0.5
-    #else:
-     #   mult=1
-    mult=0
-    Z1=-K1*((mult*r*T+E1)/(r*T**2))
-    Z2=-K2*((mult*r*T+E2)/(r*T**2))
-    Z3=-K3*((mult*r*T+E3)/(r*T**2))
-    return (Y1*Z1+Y2*Z2+Y3*Z3)/X
-addModel('tL',tlNames,tlBounds,theta_tL,dPdT_tL)
-
-## Triple Langmuir
-tlNames=["nmax","a2","a3","vmax","A1","E1","A2","E2","A3","E3"]
-
-tlBounds=[(0.0,0.1),(0,0.5),(0,0.5),(1e-10, 1e-5),(0.0,10),(0.0,30),(0,10),(0.0, 30),(0,10),(0.0, 30)]
-def theta_tL(p,t,coef):
-        a2 = coef["a2"]
-        a3 = coef["a3"]
-        A1 = coef["A1"]
-        E1 = coef["E1"]
-        A2 = coef["A2"]
-        E2 = coef["E2"]
-        A3 = coef["A3"]
-        E3 = coef["E3"]
-        #x=coef["x"]
-        K1=calcK(A1,E1,t,0)#K1=a4*np.exp(a5/r/t)/denom
-        #assume both sites are equal
-        #K2=K1
-        K2=calcK(A2,E2,t,0)#a6*np.exp(a7/r/t)/denom
-        K3=calcK(A3,E3,t,0)
-        return ((1-a2-a3)*(K1*p/(1+K1*p))+a2*(K2*p/(1+K2*p))+a3*(K3*p/(1+K3*p)))
-def dPdT_tL(P,T,coef):
-    r = 8.314462 / 1000
-    a2 = coef["a2"]
-    a3 = coef["a3"]
-    A1 = coef["A1"]
-    E1 = coef["E1"]
-    A2 = coef["A2"]
-    E2 = coef["E2"]
-    A3 = coef["A3"]
-    E3 = coef["E3"]
-    #x=coef["x"]
-    K1=calcK(A1,E1,T,0)
-    K2=calcK(A2,E2,T,0)
-    K3=calcK(A3,E3,T,0)
-    #plt.figure()
-    #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
-    #X=dTheta/dP
-    X= (1-a2-a3)*(K1/((1+K1*P)**2))+a2*(K2/((1+(K2)*P)**2))+a3*(K3/((1+(K3)*P)**2))
-    #Y=dTheta/dK
-    Y1=(1-a2-a3)*(P/((1+K1*P)**2))
-    Y2=a2*(P/((1+(K2)*P)**2))
-    Y3=a3*(P/((1+(K3)*P)**2))
-    #Z=dk/dT
-    #note:square root has an extra 0.5 in front
-    #if(isSqRoot):
-     #   mult=0.5
-    #else:
-     #   mult=1
-    mult=0
-    Z1=-K1*((mult*r*T+E1)/(r*T**2))
-    Z2=-K2*((mult*r*T+E2)/(r*T**2))
-    Z3=-K3*((mult*r*T+E3)/(r*T**2))
+    Z1=-K1*((x*r*T+E1)/(r*T**2))
+    Z2=-K2*((x*r*T+E2)/(r*T**2))
+    Z3=-K3*((x*r*T+E3)/(r*T**2))
     return (Y1*Z1+Y2*Z2+Y3*Z3)/X
 addModel('tL',tlNames,tlBounds,theta_tL,dPdT_tL)
 
@@ -244,12 +192,12 @@ def dPdT_dLDis(P,T,coef):
     a = coef["a"]
     E1 = coef["E1"]
     E2 = coef["E2"]
-    #plt.figure()
+
     #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
     #X=dTheta/dP
-    molmult=0.5
-    dismult=5/2
-    return (1-a)*(-P*E1/(r*T**2)-(molmult*P/T))+a*(-2*E2*P/(r*T**2)-(dismult*P/T))
+    molx=0.5
+    disx=5/2
+    return (1-a)*(-P*E1/(r*T**2)-(molx*P/T))+a*(-2*E2*P/(r*T**2)-(disx*P/T))
 addModel('dLDis',dlDisNames,dlDisBounds,theta_dLDis,dPdT_dLDis)
 
 #UnilanPurewal Model
@@ -304,9 +252,13 @@ def dPdT_unilan(p,T,a):
     return p/(r*T)**2*num/denom
 addModel('unilan',unilanNames,unilanBounds,theta_unilan,dPdT_unilan)
 #cooperative adsorption model
-coAdsNames=["nmax","Eint","vmax","A1","E1","A2","E2"]
-coAdsBounds=[(0.0,0.1),(-7,7),(1e-7, 1e-5), (0.001,100),(0.0,30),(0.001,100),(0.0, 30)]
+coAdsNames=["nmax","Eint","vmax","A1","E1","A2","E2","x"]
+coAdsBounds=[(0.0,0.1),(-7,7),(1e-7, 1e-5), (0.001,100),(0.0,30),(0.001,100),(0.0, 30),(0,3)]
 def theta_coAds(p,t,a):
+    if (FIT_PREFACT):
+        x = a["x"]
+    else:
+        x = preFact
     r = 8.314462 / 1000
     Eint = a["Eint"]
     A1 = a["A1"]
@@ -321,14 +273,18 @@ def theta_coAds(p,t,a):
     return 0.5*(((K1+K2)*p+2*intTerm)/(1+(K1+K2)*p+intTerm))
 def dPdT_coAds(P,T,coef):
     r = 8.314462 / 1000
+    if (FIT_PREFACT):
+        x = coef["x"]
+    else:
+        x = preFact
     Ei = coef['Eint']
     A1 = coef['A1']
     E1 = coef['E1']
     A2 = coef['A2']
     E2 = coef['E2']
     B=1/(r*T)
-    K1=calcK(A1,E1,T,1)
-    K2=calcK(A2,E2,T,1)
+    K1=calcK(A1,E1,T,x)
+    K2=calcK(A2,E2,T,x)
     Ki=np.exp(Ei*B)
     return (P*(K2*Ki*T**2*(-E2-1/B)+ K1**2*K2*np.square(P)*(-E2+Ei-1/B)+K1*(Ki*T**2*(-E1-1/B)+K2*P*(T*(-2*E1-2*E2+2*Ei-4/B)+K2*P*(-E1+Ei-1/B)))))\
     /(T/B*(K1*K2*np.square(P)*(K1+K2)+4*K1*K2*P*T+T**2*Ki*(K1+K2)))
@@ -366,29 +322,36 @@ def dPdT_sips(P,T,coef):
 addModel('sips',sipsNames,sipsBounds,theta_sips,dPdT_sips)
 
 #universal adsorption model
-univNames=["nmax","vmax","a","A1","E1","m1","E2","m2"]
+univNames=["nmax","vmax","a","A1","E1","m1","E2","m2","x"]
 
-univBounds=[(0.0,0.1),(1e-10, 1e-5), (0,1), (1e-7,1),(0.0,30),(1e-3,10),(0.0,30),(1e-3,10)]
+univBounds=[(0.0,0.1),(1e-10, 1e-5), (0,1), (1e-7,1),(0.0,30),(1e-3,10),(0.0,30),(1e-3,10),(0,3)]
 def theta_univ(p,t,coef):
         r = 8.314462 / 1000 #kJ/molK
+        if (FIT_PREFACT):
+            x = coef["x"]
+        else:
+            x = preFact
         A1 = coef["A1"]
         E1 = coef["E1"]
         E2 = coef["E2"]
         a=coef["a"]
         m1=coef["m1"]
         m2=coef["m2"]
-        K1=calcK(A1,E1,t,1)#K1=a4*np.exp(a5/r/t)/denom
+        K1=calcK(A1,E1,t,x)#K1=a4*np.exp(a5/r/t)/denom
         pow1=r*t/m1
         pow2=r*t/m2
         #assume both sites are equal
-        K2=calcK(A1,E2,t,1)
+        K2=calcK(A1,E2,t,x)
         return a*((K1*p)**pow1/(1+(K1*p)**pow1))+(1-a)*((K2*p)**pow2/(1+(K2*p)**pow2))
 def dPdT_univ(P,T,coef):
     r = 8.314462 / 1000
     A1 = coef["A1"]
     E1 = coef["E1"]
-    #x=coef["x"]
-    K1=calcK(A1,E1,T,1)
+    if (FIT_PREFACT):
+        x = coef["x"]
+    else:
+        x = preFact
+    K1=calcK(A1,E1,T,x)
     #plt.figure()
     #-dP/dT=(dTheta/dP)^-1*dtheta/dK*dK/dT
     #X=dTheta/dP
@@ -396,16 +359,18 @@ def dPdT_univ(P,T,coef):
     #Y=dTheta/dK
     Y1=(P/((1+K1*P)**2))
     #Z=dk/dT
-    #note:square root has an extra 0.5 in front
-    mult=1
-    Z1=-K1*((mult*r*T+E1)/(r*T**2))
+    Z1=-K1*((x*r*T+E1)/(r*T**2))
     return (Y1*Z1)/X
 addModel('univ',univNames,univBounds,theta_univ,dPdT_univ)
 ### Hill Models for Nick Stadie
 ##Hill1
-HillNames=["nmax","a","vmax","u","uaa","m"]
-HillBounds= [(0.0,0.1),(0,1e-3),(1e-10, 1e-3), (0,100),(0,100),(1,10)]
+HillNames=["nmax","a","vmax","u","uaa","m","x"]
+HillBounds= [(0.0,0.1),(0,1e-3),(1e-10, 1e-3), (0,100),(0,100),(1,10),(0,3)]
 def theta_Hill(p,t,a):
+    if (FIT_PREFACT):
+        x = a["x"]
+    else:
+        x = preFact
     r = 8.314462 / 1000
     u = a["u"]
     uaa = a["uaa"]
@@ -413,8 +378,12 @@ def theta_Hill(p,t,a):
     a1=a["a"]
     K1=(a1/t**x*np.exp(u/r/t))**m
     KI=np.exp(uaa / r / t)
-    return K1*KI*(p**m) / (1 + K1*KI*(p**m)) / m
+    return K1*KI*(p**m) / (1 + K1*KI*(p**m))
 def dPdT_Hill(P,T,coef):
+    if (FIT_PREFACT):
+        x = coef["x"]
+    else:
+        x = preFact
     r = 8.314462 / 1000
     u = coef["u"]
     uaa = coef["uaa"]
@@ -456,11 +425,13 @@ class isotherm():
             if (isAbsolute):
                 #absolute adsorption
                 return 1000*(nmax)*self.theta(p,t,a)
-            #dynamic adsorbed phase volume assumption
 
-            #return 1000*(nmax-vmax*den)*self.theta(p,t,a)
-            #stagnant adsorbed phase volume assumption
-            return 1000*nmax*self.theta(p,t,a)-1000*vmax*den
+            #dynamic adsorbed phase volume assumption
+            if ADS_VOL == "Dynamic":
+                return 1000*(nmax-vmax*den)*self.theta(p,t,a)
+            #static adsorbed phase volume assumption
+            if ADS_VOL == "Static":
+                return 1000*nmax*self.theta(p,t,a)-1000*vmax*den
     """ Residual calculation for LMFIT"""
     def residual(self,params, p,den, ads):
         resid =np.array([])
@@ -492,7 +463,6 @@ class isotherm():
                 modelData = self.genExcess(p[temp],float(temp),params,den[temp],self.isAbsolute)
                 curAds=np.array(ads[temp])
                 curResid=np.square(curAds - modelData)
-                #TODO: test out if we normalize to each isotherm
                 curResid/=len(p[temp])
                 if resid.size==0:
                     resid=curResid
@@ -522,7 +492,7 @@ class isotherm():
 
         print("calculating densities")
         den={}
-        if(useFugacity or useCompress):
+        if(useFugacity):
             adjPress={}
             st=initFugacity(gasName)
         for temp in p:
@@ -533,18 +503,14 @@ class isotherm():
                 tempDen.append(calcDensity(press, T, gasName))
                 if(useFugacity):
                     tempPress.append(press*calcFugacity(st,press,T))
-                elif(useCompress):
-                    tempPress.append(press*calcZ(press,T,gasName))
+
             den[temp]=tempDen
-            if useFugacity or useCompress:
+            if useFugacity:
                 adjPress[temp]=tempPress
         coef=None
         if useFugacity:
             calcPress=adjPress
             print("Using fugacity")
-        elif useCompress:
-            calcPress=adjPress
-            print("Using Compressibility")
         else:
             print("Using pressure")
             calcPress=p
@@ -561,7 +527,11 @@ class isotherm():
             print("done running fit")
             #test=optimize.minimize(self.objective, coef, args=(p,ads,den), method="Nelder-Mead", tol=1e-30)
             coef=dict(zip(self.names,coef))
-
+            # add fixed prefactor to fitting coefficients if x is a fitting parameter
+            if not (FIT_PREFACT):
+                if 'x' in coef:
+                    print("Updating prefactor to user fixed value: {}".format(preFact))
+                    coef['x'] = preFact
             coef['rssr']=rssr
             saveFitData(name+self.name,coef)
         #test new LMFIT routine
@@ -589,7 +559,8 @@ class isotherm():
 
     def diffEV(self,p,ads,den):
         minimized_function=1e9
-        numRuns=os.cpu_count()*numThreads
+        cores=os.cpu_count()
+        numRuns=cores*numThreads
         numPoints=0
         for t in p:
             numPoints+= len(p[t])
@@ -599,12 +570,16 @@ class isotherm():
         queue = Queue()
         bounds=self.bounds
         popSize=self.popSize
-        for i in range(numRuns):
-            proc=(Process(target=self.diff_evol,args=(bounds,p,ads,den,i,queue,popSize)))
-            jobs.append(proc)
-            proc.start()
-        for proc in jobs:
-            proc.join()
+        #TODO: make it so that only cpu count threads are running, do runs sequentially
+        for i in range(numThreads):
+            print("{}% Complete".format(round(cores * i*100 /numRuns)))
+            for x in range(cores):
+                proc=(Process(target=self.diff_evol,args=(bounds,p,ads,den,i+x,queue,popSize)))
+                jobs.append(proc)
+                proc.start()
+            for proc in jobs:
+                proc.join()
+        print("100% Complete ({} Runs). Analyzing Results".format(numRuns))
         for i in range(numRuns):
             temp=queue.get()
             #print("{}= {}".format(i,temp.fun))
@@ -617,6 +592,7 @@ class isotherm():
         #temp=differential_evolution(func=self.objective,bounds=self.bounds,args=(p,ads,den),seed=None,workers=-1,popsize=30*numRuns,disp=False,tol=.006,maxiter=10000,
                                     #strategy=strat,init='random')
         fin = temp.x
+
         ssr=temp.fun
         print("--- %s seconds for execution ---" % (time.time() - startTime))
         print("coefs= {}".format(fin))

@@ -1,10 +1,12 @@
-import matplotlib.pyplot as plt
+
 import matplotlib
+matplotlib.use("TkAgg") # Or 'Qt5Agg', 'Agg', etc.
+import matplotlib.pyplot as plt
 import numpy as np
 from userConfig import *
 from matplotlib.widgets import Slider,Button,CheckButtons
 #from analyzeData import calcDensity,calcVolUptake
-matplotlib.use("TkAgg")
+
 def getMinMax(press):
     min=1000
     max=-1
@@ -152,6 +154,20 @@ def plotExcessUptakeParams(ads,p,coef,fitPress,fitDens,isoModel, tempPress,name)
     plt.draw()
     plt.pause(0.001)
     plt.savefig(name+'_ExcessvsPressFit.png')
+def plotRawExcessUptake(ads,p,name):
+    plt.figure()
+    Tmin,Tmax=getMinMax(ads)
+    for temp in ads:
+        T=float(temp)
+        addPlot(p[temp], ads[temp],T, 'o',minTemp=Tmin,maxTemp=Tmax)
+    plt.ylabel("Excess Uptake (mmol/g)",fontsize=12)
+    plt.ylim(0, EXCESS_MAX)
+    plt.xlim(0, MAX_PLOT_PRESS)
+    plt.xlabel("Pressure (MPa)",fontsize=12)
+    plt.title(name)
+    plt.legend()
+    plt.draw()
+    plt.pause(0.001)
 def plotExcessUptake(ads,p,y_fit,tempPress,name):
     plt.figure()
     Tmin,Tmax=getMinMax(ads)

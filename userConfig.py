@@ -1,58 +1,65 @@
+
+############################# Choose Gas Type ##########################################
 #gasName="Methane"
-gasName="CarbonDioxide"
-#gasName="Hydrogen"
+#gasName="CarbonDioxide"
+gasName="Hydrogen"
 #gasName="Nitrogen"
 #gasName="Krypton"
-#flags for non-ideal gas corrections
+#flag for non-ideal gas corrections
 useFugacity= True
-useCompress=False
+#flag for using ideal gas density instead of real gas density
+useIdealGas=False
+
+########################### Choose Fitting Parameters ##########################################
+#parameter to force recalculating of fits, even if fit was already done
+RECALC_FITS=False
+#adsorbed volume definition, only uncomment one of the two
+ADS_VOL="Static"
+#ADS_VOL="Dynamic"
+
+#parameter to force or fit prefactor dependences. True means that code will fit prefactor 1/T^x
+FIT_PREFACT=False
+#Denominator Temperature Dependence prefactor for Langmuir (FIT_PREFACT must be false) should be 0-3
+preFact=0
+#Number of differential evolution instances to run (multiplies by PC core count)
+numThreads=8
+
+######################### Define format for raw data ##########################################
 #Assumes that all data is absolute uptake, default is false (if excess file exists will assume excess uptake)
 OVERRIDE_ABSOLUTE=False
-#Convert data from weight percent to mmol/g, for fitting
-CONVERT_WT_MOL=False
+#Convert data from weight percent to mmol/g, for fitting (set to false if using data in mmol/g)
+CONVERT_WT_MOL=True
+
 #######################PLOTTING PARAMETERS#########################################################################
-#parameter to force recalculating of fits, even if fit was already done
-RECALC_FITS=True
+
 #Closes figures automatically, otherwise you have to manually close them to continue
-CLOSE_FIGS=False
+CLOSE_FIGS=True
 # parameter to cut off absolute isosteric enthalpy calcuation at thetamax
-CUTOFF_THETA=False
+CUTOFF_THETA=True
 #parameter to fit isoexcess enthalpy with smoothing spline
-USE_SPLINE=True
+USE_SPLINE=False
 #max pressure to plot on X axis
-MAX_PLOT_PRESS=.1
+MAX_PLOT_PRESS=10
 STEP_PRESS=0.001
-DELTAH_MAX=12
+DELTAH_MAX=10
 DELTAH_MIN=0
-ABSOLUTE_MAX=6
-EXCESS_MAX=6
+ABSOLUTE_MAX=35
+EXCESS_MAX=35
 ###################################################################################################################
 
-
+######################### Choose Sample Name ##########################################
 #Names of samples that you want to run
 names=[]
-names.append("EE2")
-#names.append("Nuchar")
-#names.append("ET094")
-#names.append("EH046")
-#names.append("HKUST1_BAM")
-#names.append("HKUST1_NREL")
-#names.append("HKUST1_LBNL")
-#names.append("HKUST1_UCB")
-#names.append("HKUST1_ICMPE")
-#names.append("HKUST1_Hiden")
-#names.append("HKUST1_NWU")
-#names.append("HKUST1_HU")
-#names.append("HKUST1_Max")
-#names.append("HKUST1_A2ML")
-#names.append("HKUST1_UNT")
-#names.append("HKUST1_MSU")
+#names.append("EE2")
+names.append("EH046")
 
-#Names of Langmuir Models that you want to run
+
+######################### Choose Adsorption Model ##########################################
+#append models to run more than one model for a given dataset
 models = []
-models.append("Hill")
+#models.append("Hill")
 #models.append("sL")
-#models.append("dL")
+models.append("dL")
 #models.append("tL")
 #models.append("coAds")
 #models.append("unilan")
@@ -61,5 +68,4 @@ models.append("Hill")
 #models.append("toth")
 #models.append("sips")
 
-#Number of populationSize to run multiplies by core count
-numThreads=8
+

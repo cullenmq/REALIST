@@ -17,6 +17,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,RECALC_FITS=False,CLOSE_
     #analysis data
     #fitted data
     yFitAll={}
+    yFitWtAll={}
     adjFitPressAll={}
     rssrAll={}
     #volumetric data
@@ -41,6 +42,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,RECALC_FITS=False,CLOSE_
     denAll={}
     denFitAll={}
     wtAll={}
+    nAbsAll={}
     isoEx={}
     homeDir=os.getcwd()
     for name in names:
@@ -85,7 +87,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,RECALC_FITS=False,CLOSE_
         #Xpore[name]=Vpore/(Vpore+1/skelDens)
         #XporeName="XSwollen"
         #3b: calculate volumetric uptake
-        tempPress=np.arange(0.00001, MAX_PLOT_PRESS, STEP_PRESS)
+        tempPress=np.arange(0.0001, MAX_PLOT_PRESS, STEP_PRESS)
         #tempPress=np.arange(0.0001, 0.1, 0.001)
         yFitAll[name],fitPress,denFitAll[name],adjFitPressAll[name],rssrAll[name],exVolAdsAll[name],totalVolAdsAll[name],totalVolAdsFitAll[name],totalVol5bar[name]=calcUptake(
                                                                                               ads=adsAll[name],coef=coefAll[name],gasName=gasName,
@@ -95,6 +97,7 @@ def startRun(names,gasName,model="dL",sampleParams=None,RECALC_FITS=False,CLOSE_
         
 
 
+        yFitWtAll[name]=molToWt(yFitAll[name],gasName)
         plotExcessUptakeParams(adsAll[name],PAll[name],coefAll[name],adjFitPressAll[name],denFitAll[name],isoTest, fitPress,name)
         #plotExcessUptake(adsAll[name],PAll[name],yFitAll[name],fitPress,name+model)
         #3c: save RT, 0C data for DOE Targets
@@ -119,28 +122,41 @@ def startRun(names,gasName,model="dL",sampleParams=None,RECALC_FITS=False,CLOSE_
         #Step 4a: set up calcPress and actualPress based on a log scale
         #calcPress is usually fugacity ("input" used to correct for nonideal gas behaviour)
         #we plot against "actual press". If our simplistic models took nonidealities into account we wouldnt need calcPress
+        #New code to calc absolute adsorption
+        actualPress, calcPress = adjustPressure(PAll[name], tempPress, gasName=gasName)
+        nAbsAll[name] = absAds(calcPress, actualPress, coefAll[name], isoModel=isoTest, name=name + model)
+        nAbsWtAll=molToWt(nAbsAll[name],gasName)
 
         #calc isoexcess
         nExCalc={}
+        nAbCalc = {}
         prevTemp=-1
         isoEx={}
+        isoSt={}
         for temp in fitPress:
             if prevTemp==-1:
                 nExCalc[temp]=[]
+                nAbCalc[temp]=[]
                 isoEx[temp]=[]
+                isoSt[temp]=[]
                 prevTemp=temp
                 continue
             else:
-                #only fit up to the maximum measured excess uptake (where the isotherm ßcurves over)
+                #only fit up to the maximum measured excess uptake (where the isotherm curves over)
                 nExCalc[temp]=np.arange(0.1, min(max(wtAll[name][temp]),max(wtAll[name][prevTemp])), .1)
+
+                nAbCalc[temp]=np.arange(0.1, min(max(nAbsWtAll[temp]),max(nAbsWtAll[prevTemp])), .1)
                 cs={}
+                absAd={}
                 if(USE_SPLINE):
                         cs[temp]=CubicSpline(PAll[name][temp],wtAll[name][temp])(fitPress[temp])
                         cs[prevTemp]=CubicSpline(PAll[name][prevTemp],wtAll[name][prevTemp])(fitPress[prevTemp])
                         
                 else:
                     cs=yFitAll[name]
+                    absAd=nAbsAll[name]
                 isoEx[temp]=calcIsoExcess(nExCalc[temp],fitPress,cs,float(temp),float(prevTemp))
+                isoSt[temp] = calcIsoExcess(nAbCalc[temp], fitPress, absAd, float(temp), float(prevTemp))
         
 
         
@@ -168,8 +184,12 @@ def startRun(names,gasName,model="dL",sampleParams=None,RECALC_FITS=False,CLOSE_
             info.update({a:[coefAll[name][a],str(isoTest.bounds[i])]})
         info.update({'adsRho (mmol/ml)':adsRhoAll[name]})
         info.update({'RSSR':rssrAll[name]})
-        data={'Raw Press (MPa)':newP,'Raw Adjusted Press (MPa)':adjPressAll[name],'Excess (mmol/g)':adsAll[name],'Excess Vol (g/L)':exVolAdsAll[name],'Total Vol (g/L)':totalVolAdsAll[name],'fitPress (MPa)':fitPress,'Adjusted Fit Press (MPa)':adjFitPressAll[name],'Gas Phase Density':denFitAll[name],'Excess Fit (mmol/g)':yFitAll[name],'Total Vol Fit (g/L)':totalVolAdsFit, 'adjustedModelPress':calcPress,'actualPress':actualPress,
-              'Absolute (mmolg)':fa1,'Absolute (wt%)':abswt,'fill factor':thetaAll[name],'Isosteric Heat (kJ/mol)':deltaH[name], 'excess uptake (wt%)':nExCalc, 'isoExcess (kJ/mol)':isoEx}
+        info.update({'T_Pre':preFact})
+        info.update({'Vol': ADS_VOL})
+        data={'Raw Press (MPa)':newP,'Raw Adjusted Press (MPa)':adjPressAll[name],'Excess (mmol/g)':adsAll[name],'Excess (wt%)':wtAll[name],'Excess Vol (g/L)':exVolAdsAll[name],
+              'Total Vol (g/L)':totalVolAdsAll[name],'fitPress (MPa)':fitPress,'Adjusted Fit Press (MPa)':adjFitPressAll[name],'Gas Phase Density':denFitAll[name],'Excess Fit (mmol/g)':yFitAll[name],
+              'Excess Fit (wt%)':yFitWtAll[name],'Total Vol Fit (g/L)':totalVolAdsFit, 'adjustedModelPress':calcPress,'actualPress':actualPress,'Absolute (mmolg)':fa1,'Absolute (wt%)':abswt,
+              'fill factor':thetaAll[name],'Isosteric Heat (kJ/mol)':deltaH[name], 'excess uptake (wt%)':nExCalc, 'isoExcess (kJ/mol)':isoEx,'absolute uptake (wt%)':nAbCalc,'isosteric (kJ/mol)':isoSt}
 
         saveFile(info,data)
         if (CLOSE_FIGS):

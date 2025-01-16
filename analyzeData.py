@@ -85,7 +85,7 @@ def calcIsoExcess(fitExcess,press,uptake,T2=87,T1=77):
     r = 8.314462 /1000
     #find name that is within 2K of desired temp
     for names in press:
-        print(names)
+
         if(abs(float(names)-T1)<2):
             T1Name=names
             t1n=float(T1Name)
@@ -150,7 +150,6 @@ def calcVolUptake(exUptake,gasRho,bulkDens,Xpore,gasName="Methane"):
     
     #excessUptake in mmol/g,excessVolUptake in g/L
     excessVolUptake= exUptake*bulkDens*molMass(gasName)#*1000
-    print("Density")
     #total density is in g/L
     totalVolUptake=excessVolUptake+(gasRho*Xpore)*molMass(gasName)#*1000
     
@@ -159,20 +158,33 @@ def calcVolUptake(exUptake,gasRho,bulkDens,Xpore,gasName="Methane"):
 def calcQstInt(fitPress,actualPress,coef,adsRho,fa1,name,closeFig,isoModel,gasName):
     Qst={}
     theta={}
-    liqmolarv = 0.001 / adsRho
+
     for temp in fitPress:
         T=float(temp)
         dens=[]
 
-        #todo: Check if press or actualPress is fugacity
+
         for press in actualPress[temp]:
             dens.append(calcDensity(press,T,gasName))
         dens=np.array(dens)
         P=np.array(fitPress[temp])
+        theta[temp] = isoModel.theta(P, T, coef)
+        nmax = coef["nmax"]
+        vmax=coef['vmax']
+        if(ADS_VOL== "Static"): #static volume means dynamic adsorbed density (gas-like)
+            n = nmax * theta[temp]
+        elif (ADS_VOL== "Dynamic"): #dynamic volume with constant adsorbed density (liquid-like)
+            n = nmax
+        try:
+            adsrho = n * 1e3 / vmax / 1e6  # coef["ρAds"]
+        except:
+            adsrho = -1
+        liqmolarv = 0.001 / adsRho
+
         #Qst=-TdP/dT(vgas-vads)
         #-dP/dT=(dTheta/dP)^-1*dtheta/dT
         Qst[temp]= -T*(1/dens-liqmolarv)*1000*isoModel.dPdT(P,T,coef)
-        theta[temp]= isoModel.theta(P,T,coef)
+
     plotIsoHeat(actualPress, fa1, theta, Qst, name)
     return Qst,theta
 

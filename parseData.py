@@ -133,7 +133,6 @@ def saveFile(fit,data):
         curData=data[names]
         for temp in data[names]:
             if temp not in worksheet:
-                print(temp)
                 worksheet[temp]=workbook.add_worksheet(temp)
             worksheet[temp].write(0,i,names)
             worksheet[temp].write_column(1,i,curData[temp])

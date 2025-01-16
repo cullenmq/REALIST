@@ -1,7 +1,7 @@
 
 import CoolProp as CP
 from CoolProp.CoolProp import PropsSI
-
+from userConfig import useIdealGas
 def critT(gas):
     return PropsSI("Tcrit",gas)
 #Input: T in K
@@ -15,7 +15,13 @@ def calcDensity(p,t,gas):
     name="HEOS::"+gas
     #convert MPa to Pa
     p=p*1e6
-    #P in Pa, T in K, D in mol/m^3
+    # P in Pa, T in K, D in mol/m^3
+    if useIdealGas:
+        r=8.314462 #Pa*m^3/(mol*K)
+        #mol/m^3
+        return p/(r*t)
+
+    # P in Pa, T in K, D in mol/m^3
     return PropsSI('Dmolar', 'T', t, 'P', p, name)
 def calcFugacity(st,P,T):
     P=P*1e6
