@@ -7,6 +7,7 @@ from scipy.optimize import differential_evolution, least_squares
 import os
 import time
 from userConfig import *
+import userConfig
 from plotData import plotRawExcessUptake
 coefNames={} #list of names for coefficients for specific model
 bounds={} #list of bounds for each coef (must equal coefNames)
@@ -72,7 +73,7 @@ addModel('sL',slNames,slBounds,theta_sL,dPdT_sL)
 
 ## DUAL Langmuir
 dlNames=["nmax","a","vmax","A1","E1","A2","E2","x"]
-dlEqn=r'$\theta=(1-a)*\left(\frac{\frac{A_1}{T}e^{\frac{E_1}{RT}}P}{1+\frac{A_1}{T}e^{\frac{E_1}{RT}}P}\right)+a\left(\frac{\frac{A_2}{T}e^{\frac{E_2}{RT}}P}{1+\frac{A_2}{T}e^{\frac{E_2}{RT}}P}\right)$'
+dlEqn=r'$\theta=(1-a)*\left(\frac{\frac{A_1}{T^x}e^{\frac{E_1}{RT}}P}{1+\frac{A_1}{T^x}e^{\frac{E_1}{RT}}P}\right)+a\left(\frac{\frac{A_2}{T^x}e^{\frac{E_2}{RT}}P}{1+\frac{A_2}{T^x}e^{\frac{E_2}{RT}}P}\right)$'
 dlBounds=[(0,0.065),(0.0,1),(1e-7, 5e-6), (0.0,5e-2),(0.0,30),(0.0,5e-2),(0.0, 15),(0,3)]
 def theta_dL(p,t,coef):
         a = coef["a"]
@@ -202,14 +203,15 @@ addModel('dLDis',dlDisNames,dlDisBounds,theta_dLDis,dPdT_dLDis)
 
 #UnilanPurewal Model
 unilanPurewalNames=["nmax","deltaS","vmax","Emin","Emax"]
-unilanPurewalBounds=[(0.0,0.1),(0,10),(1e-7, 1e-5), (0.0,30),(0.0,30)]
+unilanPurewalBounds=[(0.0,0.1),(0.,10),(1e-8, 1e-5), (0.1,15),(0.1,15)]
 def theta_unilanPurewal(p,t,a):
         r = 8.314462 / 1000
         deltaS = a["deltaS"]
         Emin = a["Emin"]
         Emax = a["Emax"]
         c=np.exp(deltaS)
-        return (r*t)/(Emax-Emin)*np.log((c+p*np.exp(Emax/r/t))/(c+p*np.exp(Emin/r/t)))
+        dif=Emax-Emin
+        return (r*t)/(dif)*np.log((c+p*np.exp(Emax/(r*t)))/(c+p*np.exp(Emin/(r*t))))
 def dPdT_unilanPurewal(p,t,a):
     r = 8.314462 / 1000
     deltaS = a["deltaS"]
@@ -224,7 +226,7 @@ def dPdT_unilanPurewal(p,t,a):
 addModel('unilanPurewal',unilanPurewalNames,unilanPurewalBounds,theta_unilanPurewal,dPdT_unilanPurewal)
 #Unilan Model
 unilanNames=["nmax","deltaS","vmax","Emin","Emax"]
-unilanBounds=[(0.0,0.1),(1e-4,1),(1e-7, 1e-5), (0,30),(0.1,30)]
+unilanBounds=[(0.0,0.1),(1e-5,1),(1e-7, 1e-5), (0,30),(0.1,30)]
 def theta_unilan(p,t,a):
         r = 8.314462 / 1000
         deltaS = a["deltaS"]
@@ -232,8 +234,8 @@ def theta_unilan(p,t,a):
         Emax = a["Emax"]
         c=deltaS
         try:
-            num=r*t/c+p*np.exp(Emax/r/t)
-            denom=r*t/c+p*np.exp(Emin/r/t)
+            num=1/c+p*np.exp(Emax/r/t)
+            denom=1/c+p*np.exp(Emin/r/t)
             logTerm=np.log(num/denom)
             x=(r*t)/(Emax-Emin)*logTerm
         except:
@@ -398,10 +400,13 @@ class isotherm():
         self.bounds=bounds[name]
         self.names=coefNames[name]
         self.isAbsolute=isAbsolute
-    def diff_evol(self,bounds,p,ads,den,i,queue,popSize):
-            strat='randtobest1exp'#'randtobest1bin'
-            queue.put(differential_evolution(func=self.objective,popsize=popSize,bounds=bounds,args=(p,ads,den),seed=i,disp=False,tol=.006,maxiter=10000,
-                                                strategy=strat,init='random'))
+
+    def diff_evol(self, bounds, p, ads, den, i, queue, popSize):
+        strat = 'randtobest1exp'  # 'randtobest1bin'
+        queue.put(
+            differential_evolution(func=self.objective, popsize=popSize, bounds=bounds, args=(p, ads, den), seed=i,
+                                   disp=False, tol=.006, maxiter=10000,
+                                   strategy=strat, init='random'))
 
     def calcExcess(self,calcPress,ads,den,t,a):
         p=np.array(calcPress)
@@ -470,78 +475,82 @@ class isotherm():
                     resid=np.append(resid,curResid)
             # now flatten this to a 1D array, as minimize() needs
             return np.sum(resid)#resid.flatten()
+
     """ Function to optimize the isotherm fit (after initial guess) or after differential evolution to get stdDev, refine fit"""
-    def refineFit(self,initParams,p,ads,den):
-        params= lmfit.Parameters()
-        i=0
-        newParams=[]
+
+    """ Function to optimize the isotherm fit (after initial guess) or after differential evolution to get stdDev, refine fit"""
+
+    def refineFit(self, initParams, p, ads, den):
+        params = lmfit.Parameters()
+        i = 0
+        newParams = []
         for name in initParams:
+            if userConfig.FIT_PREFACT == False and name == 'x':
+                continue
             if name != 'rssr':
                 newParams.append(initParams[name])
-                params.add(name,initParams[name],min=self.bounds[i][0],max=self.bounds[i][1])
-                i+=1
+                params.add(name, initParams[name], min=self.bounds[i][0], max=self.bounds[i][1])
+                i += 1
 
-        #powell,tnc not terrible
-        refParams=lmfit.minimize(self.residual,params,args=(p,den,ads),method="powell")
+        # powell,tnc not terrible
+        refParams = lmfit.minimize(self.residual, params, args=(p, den, ads), method="powell")
         print("Done Refining Fit using least squares:")
         lmfit.report_fit(refParams)
-        RSSR=np.sqrt(np.sum(np.square(refParams.residual)))/refParams.ndata
+        RSSR = np.sqrt(np.sum(np.square(refParams.residual))) / refParams.ndata
         print("New RSSR/pt Value: {}".format(RSSR))
-
-    def runFit(self,p,ads,gasName, isRunFit=True,name='test'):
+    def runFit(self, p, ads, gasName, isRunFit=True, name='test'):
 
         print("calculating densities")
-        den={}
-        if(useFugacity):
-            adjPress={}
-            st=initFugacity(gasName)
+        den = {}
+        if (useFugacity):
+            adjPress = {}
+            st = initFugacity(gasName)
         for temp in p:
-            T=float(temp)
-            tempDen=[]
-            tempPress=[]
+            T = float(temp)
+            tempDen = []
+            tempPress = []
             for press in p[temp]:
                 tempDen.append(calcDensity(press, T, gasName))
-                if(useFugacity):
-                    tempPress.append(press*calcFugacity(st,press,T))
+                if (useFugacity):
+                    tempPress.append(press * calcFugacity(st, press, T))
 
-            den[temp]=tempDen
+            den[temp] = tempDen
             if useFugacity:
-                adjPress[temp]=tempPress
-        coef=None
+                adjPress[temp] = tempPress
+        coef = None
         if useFugacity:
-            calcPress=adjPress
+            calcPress = adjPress
             print("Using fugacity")
         else:
             print("Using pressure")
-            calcPress=p
-        if isRunFit==False:
-            coef=loadFitData(name+self.name)
-            if coef !=None:
-                rssr=coef['rssr']
-        if isRunFit or coef==None:
+            calcPress = p
+        if isRunFit == False:
+            coef = loadFitData(name + self.name)
+            if coef != None:
+                rssr = coef['rssr']
+        if isRunFit or coef == None:
             print("running fit")
 
-
-            #coef,rssr=leastsq(calcPress,ads,den,isSqRoot)
-            coef,rssr=self.diffEV(calcPress,ads,den)
+            # coef,rssr=leastsq(calcPress,ads,den,isSqRoot)
+            coef, rssr = self.diffEV(calcPress, ads, den)
             print("done running fit")
-            #test=optimize.minimize(self.objective, coef, args=(p,ads,den), method="Nelder-Mead", tol=1e-30)
-            coef=dict(zip(self.names,coef))
+            # test=optimize.minimize(self.objective, coef, args=(p,ads,den), method="Nelder-Mead", tol=1e-30)
+            coef = dict(zip(self.names, coef))
             # add fixed prefactor to fitting coefficients if x is a fitting parameter
             if not (FIT_PREFACT):
                 if 'x' in coef:
                     print("Updating prefactor to user fixed value: {}".format(preFact))
                     coef['x'] = preFact
-            coef['rssr']=rssr
-            saveFitData(name+self.name,coef)
-        #test new LMFIT routine
-        self.refineFit(coef,calcPress,ads,den)
+            coef['rssr'] = rssr
+            saveFitData(name + self.name, coef)
+        # test new LMFIT routine
+        self.refineFit(coef, calcPress, ads, den)
 
-        #we need to calculate excess uptake if given absolute uptake
+        # we need to calculate excess uptake if given absolute uptake
         if self.isAbsolute:
             for temp in ads:
-                ads[temp] = self.calcExcess(calcPress[temp],ads[temp],den[temp],float(temp),coef)
-        return coef, den,calcPress,ads
+                ads[temp] = self.calcExcess(calcPress[temp], ads[temp], den[temp], float(temp), coef)
+        return coef, den, calcPress, ads
 
     def EqnName(self):
         return eqns.get(self.name)
@@ -556,50 +565,52 @@ class isotherm():
             return dPdTModel(p,t,a)
         raise ValueError("Need to define theta function for this model!")
 
-
-    def diffEV(self,p,ads,den):
-        minimized_function=1e9
-        cores=os.cpu_count()
-        numRuns=cores*numThreads
-        numPoints=0
+    def diffEV(self, p, ads, den):
+        # multiprocessing.set_start_method('spawn')
+        minimized_function = 1e9
+        cores = int(os.cpu_count())
+        print(cores)
+        numRuns = cores * numThreads
+        numPoints = 0
         for t in p:
-            numPoints+= len(p[t])
-        #lets do this in parallel
-        startTime=time.time()
-        jobs=[]
+            numPoints += len(p[t])
+        # lets do this in parallel
+        startTime = time.time()
+        jobs = []
         queue = Queue()
-        bounds=self.bounds
-        popSize=self.popSize
-        #TODO: make it so that only cpu count threads are running, do runs sequentially
+        bounds = self.bounds
+        popSize = self.popSize
+        # TODO: make it so that only cpu count threads are running, do runs sequentially
         for i in range(numThreads):
-            print("{}% Complete".format(round(cores * i*100 /numRuns)))
+            print("{}% Complete".format(round(cores * i * 100 / numRuns)))
             for x in range(cores):
-                proc=(Process(target=self.diff_evol,args=(bounds,p,ads,den,i+x,queue,popSize)))
+                proc = (Process(target=self.diff_evol, args=(bounds, p, ads, den, i + x, queue, popSize)))
                 jobs.append(proc)
                 proc.start()
+            for i in range(cores):
+                temp = queue.get()
+                # print("{}= {}".format(i,temp.fun))
+                if minimized_function > temp.fun:
+                    minimized_function = temp.fun
+                    fin = temp.x
+                    ssr = temp.fun
             for proc in jobs:
                 proc.join()
         print("100% Complete ({} Runs). Analyzing Results".format(numRuns))
-        for i in range(numRuns):
-            temp=queue.get()
-            #print("{}= {}".format(i,temp.fun))
-            if minimized_function > temp.fun:
-                minimized_function = temp.fun
-                fin = temp.x
-                ssr=temp.fun
+
         #     #resultt = result
-        #strat='randtobest1exp'#'randtobest1bin'
-        #temp=differential_evolution(func=self.objective,bounds=self.bounds,args=(p,ads,den),seed=None,workers=-1,popsize=30*numRuns,disp=False,tol=.006,maxiter=10000,
-                                    #strategy=strat,init='random')
+        # strat='randtobest1exp'#'randtobest1bin'
+        # temp=differential_evolution(func=self.objective,bounds=self.bounds,args=(p,ads,den),seed=None,workers=-1,popsize=30*numRuns,disp=False,tol=.006,maxiter=10000,
+        # strategy=strat,init='random')
         fin = temp.x
 
-        ssr=temp.fun
+        ssr = temp.fun
         print("--- %s seconds for execution ---" % (time.time() - startTime))
         print("coefs= {}".format(fin))
-        rssr=np.sqrt(ssr)
+        rssr = np.sqrt(ssr)
         print("RSSR :{}".format(rssr))
-        rssr=rssr/numPoints
+        rssr = rssr / numPoints
         print("RSSR/point :{}".format(rssr))
-        #for i,key in enumerate(a):
-            #a[key]=fin[i]
-        return fin,rssr
+        # for i,key in enumerate(a):
+        # a[key]=fin[i]
+        return fin, rssr

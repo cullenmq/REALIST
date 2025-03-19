@@ -4,8 +4,6 @@ from plotData import plotIsoHeat,plotAbsUptake,plotAdsLayer
 from EOS import calcDensity,calcSatPress,critT, calcZ
 from parseData import molToWt
 from userConfig import *
-def sqrt(x):
-    return np.sqrt(x)
 def findAdsDensity(coef):
     #nmax in mol/g, vmax in m3/g
     #if vmax is zero divide by zero error! fix by manually setting adsrho to -1 if this is the case
@@ -63,9 +61,6 @@ def adjustPressure(expP,normalPress, gasName):
             if(useFugacity):
                 for press in actualPress[temp]:
                     calcPress[temp].append(press*calcFugacity(st,press,float(temp)))
-            elif(useCompress):
-                for press in actualPress[temp]:
-                    calcPress[temp].append(press*calcZ(press,float(temp),gasName))
             else:
                 calcPress[temp]=actualPress[temp]
     return actualPress,calcPress
@@ -75,7 +70,12 @@ def adjustPressure(expP,normalPress, gasName):
 def findPress(press,uptake,value):
     array = np.asarray(uptake)
     idx = (np.abs(array - value)).argmin()
-    return press[idx]
+    try:
+        val=press[idx]
+    except:
+        print("pressure lookup out of range! grabbing last pressure point")
+        val=press[-1]
+    return val
 ##calculate isoexcess heat of adsorption, fitExcess in wt%, press in bar, uptake in mmol/g
 def calcIsoExcess(fitExcess,press,uptake,T2=87,T1=77):
     #first find name of relevant isotherm
